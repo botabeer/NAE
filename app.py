@@ -7,12 +7,18 @@ import os
 
 app = Flask(__name__)
 
+# التوكن والسكرت
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
+
+if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
+    print("خطأ: تأكد من وضع LINE_CHANNEL_ACCESS_TOKEN و LINE_CHANNEL_SECRET في متغيرات البيئة")
+    exit(1)
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
+# أسئلة حسب الفئة
 questions = {
     "حب": [
         "من أكثر شخص تحبه في حياتك؟",
@@ -45,14 +51,19 @@ welcome_message = "أهلا! اختر نوع الأسئلة: حب، شخصية،
 
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers['X-Line-Signature']
+    signature = request.headers.get('X-Line-Signature', '')
+
     body = request.get_data(as_text=True)
-    
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        abort(400)
-    return 'OK'
+        print("خطأ: التوقيع غير صحيح")
+        return 'Invalid signature', 200  # لا يزال LINE يحتاج 200
+    except Exception as e:
+        print(f"خطأ: {e}")
+        return 'Error', 200  # أي خطأ آخر أيضًا يرجع 200
+
+    return 'OK', 200  # دائمًا 200
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
