@@ -1,5 +1,2 @@
-flask
-line-bot-sdk
-apscheduler
-aiohttp==3.9.5
-gunicorn
+Flask==2.3.4
+line-bot-sdk==2.1.0
