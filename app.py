@@ -12,92 +12,68 @@ LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# ------------------ قراءة الملفات ------------------
-def read_file(filename):
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            return [line.strip() for line in f if line.strip()]
-    except:
-        return []
+# ---------- الأسئلة والتحديات والاعترافات ----------
+questions = [
+    "ما أكثر شيء تحبه في شريك حياتك؟",
+    "اعترف بشيء تخفيه عنه.",
+    "هل سبق وندمت على تصرف مع شريكك؟",
+    "هل تغار عليه كثير؟",
+    "هل تشعر أنه يفهمك بدون كلام؟"
+]
 
-questions = read_file("questions.txt")
-love_challenges = read_file("challenges.txt")
-confessions = read_file("confessions.txt")
-personality_questions = read_file("personality_questions.txt")
+love_challenges = [
+    "اكتب له رسالة تبدأ بكلمة (أحبك لأن...).",
+    "شارك معه ذكرى ما تنساها.",
+    "قل له شي تحبه فيه ما قد قلته."
+]
 
-# ------------------ الألعاب ------------------
-games = {
-    "1": {"name": "الغابة", "questions":[
-        {"q":"أنت في غابة، ترى كوخ قديم. ماذا تفعل؟", "options":["تدخل الكوخ","تستكشف الغابة","تنتظر مساعدة","ترجع للمنزل"]},
-        {"q":"تسمع صوت غريب. ماذا تختار؟", "options":["تجاهله","تتبعه","تصرخ","تختبئ"]},
-        {"q":"ترى نهر سريع. ماذا تفعل؟", "options":["تعبره","تمشي على الجسر","تتراجع","تجلس على الضفة"]},
-        {"q":"تجد طريقان، أيهما تختار؟", "options":["اليمين","اليسار","العودة","الاستراحة"]},
-        {"q":"تجد ثمرة غريبة. ماذا تفعل؟", "options":["تأكلها","تتركها","تأخذها معك","تتجاهل"]},
-        {"q":"سمعت صوت حيوان مفترس. ماذا تفعل؟", "options":["تختبئ","تصرخ","تركض","تتسلق شجرة"]},
-        {"q":"تجد خيمة مهجورة. ماذا تفعل؟", "options":["تدخلها","تستكشف المنطقة","تتجاهلها","تبني مكانك"]},
-        {"q":"أمطار غزيرة، كيف تتصرف؟", "options":["تبحث عن مأوى","تستمر","ترجع","تصنع مظلة"]},
-        {"q":"ترى ضوء بعيد. ماذا تفعل؟", "options":["تقترب","تتجاهل","تراقبه","تختبئ"]},
-        {"q":"تجد خريطة قديمة. ماذا تفعل؟", "options":["تتبعها","تتركها","تحرقها","تحتفظ بها"]},
-    ]},
-    "2": {"name": "الجزيرة", "questions":[
-        {"q":"أنت على جزيرة مهجورة، ترى كهف. ماذا تفعل؟", "options":["تدخل الكهف","تستكشف الشاطئ","تنتظر مساعدة","تصنع مأوى"]},
-        {"q":"تجد طائر غريب. ماذا تفعل؟", "options":["تراقبه","تصطاده","تتركه","تصوره"]},
-        {"q":"هناك شجرة مليئة فواكه. ماذا تفعل؟", "options":["تقطفها","تتركها","تأكل مباشرة","تخزنها"]},
-        {"q":"ترى قارب بعيد. ماذا تفعل؟", "options":["تسبح نحوه","تراقبه","تجهز نفسك","تتجاهله"]},
-        {"q":"تمطر فجأة. ماذا تفعل؟", "options":["تبني مأوى","تظل مبتلاً","تبحث عن كهف","تصنع مظلة"]},
-        {"q":"تسمع صوت غريب بالليل. ماذا تفعل؟", "options":["تختبئ","تراقب","تصرخ","تجلس"]},
-        {"q":"تجد حيوانات صغيرة. ماذا تفعل؟", "options":["تطعمها","تتركها","تصورها","تصطادها"]},
-        {"q":"ترى ضوء بعيد في الغابة. ماذا تفعل؟", "options":["تقترب","تتجاهل","تراقبه","تختبئ"]},
-        {"q":"تجد خريطة كنز. ماذا تفعل؟", "options":["تتبعها","تتركها","تحرقها","تحتفظ بها"]},
-        {"q":"تجد طعام محفوظ. ماذا تفعل؟", "options":["تأكله","تتركه","تحتفظ به","تشارك مع الآخرين"]},
-    ]},
-    "3": {"name": "المدينة", "questions":[
-        {"q":"أنت في مدينة غريبة، ترى مترو. ماذا تفعل؟", "options":["تركبه","تمشي على الأقدام","تسأل عن الطريق","تراقب المكان"]},
-        {"q":"ترى مطعم جديد. ماذا تفعل؟", "options":["تدخل","تمر","تسأل عن الطعام","تصور"]},
-        {"q":"تجد شخص ضائع. ماذا تفعل؟", "options":["تساعده","تتجاهله","تسأل الآخرين","تصوره"]},
-        {"q":"هناك شارع مزدحم. ماذا تفعل؟", "options":["تمشي","تركب تاكسي","تتوقف","تراقب"]},
-        {"q":"ترى نافورة جميلة. ماذا تفعل؟", "options":["تصورها","تجلس","تجاهلها","تستمتع"]},
-        {"q":"تجد متجر غريب. ماذا تفعل؟", "options":["تدخل","تمر","تراقب","تسأل"]},
-        {"q":"تسمع موسيقى في الشارع. ماذا تفعل؟", "options":["تستمع","تمشي","تصور","تتجاهل"]},
-        {"q":"ترى قطة صغيرة. ماذا تفعل؟", "options":["تطعمها","تتركها","تصورها","تراقب"]},
-        {"q":"تجد خريطة المدينة. ماذا تفعل؟", "options":["تتبعها","تتركها","تصورها","تسأل"]},
-        {"q":"تمطر فجأة، ماذا تفعل؟", "options":["تبحث عن مأوى","تستمر","ترجع","تصنع مظلة"]},
-    ]}
-}
+confessions = [
+    "اعترف بأول شخص جذبك في حياتك.",
+    "اعترف بأكثر عادة سيئة عندك.",
+    "اعترف بشي ندمت عليه."
+]
 
-# ------------------ الجلسات ------------------
-user_sessions = {}        
-group_sessions = {}       
-user_asked_questions = {} 
+personality_questions = [
+    "تحب تبدأ يومك بالنشاط ولا بالهدوء؟",
+    "لما تزعل، تفضل تعبر ولا تسكت؟",
+    "تحب التجمعات الكبيرة ولا الجلسات الصغيرة؟"
+]
 
-# ------------------ تحليل الشخصية ------------------
-def analyze_personality(answers, name):
+# ---------- جلسات ----------
+user_sessions = {}
+group_sessions = {}
+
+# ---------- تحليل الشخصية مفصل ----------
+def analyze_personality(answers):
     score_active = 0
     score_calm = 0
     score_love = 0
     for a in answers:
-        t = str(a).strip().lower()
-        if any(x in t for x in ["1","أ","تدخل","تسير","تبحث","تتبع","اجتماعي","قائد","عفوي"]):
-            score_active +=1
-        if any(x in t for x in ["2","ب","تنتظر","تجلس","تختبئ","هدوء","وحدي","سكوت"]):
-            score_calm +=1
-        if any(x in t for x in ["3","ج","ص","مشاعر","حب","عاطفي","قلب"]):
-            score_love +=1
-    analysis_text = f"🔍 تحليل شخصية {name}:\n"
-    if score_love > max(score_active, score_calm):
-        analysis_text += "شخصية عاطفية حساسة، مشاعرك عميقة وتحب تهتم بالناس 💗"
-    elif score_active > score_calm:
-        analysis_text += "شخصية منفتحة ونشيطة، تحب الحياة والتجارب الجديدة 🔥"
-    elif score_calm > score_active:
-        analysis_text += "شخصية هادئة ومتزنة، تحب الأمان والاستقرار 🌿"
-    else:
-        analysis_text += "شخصية متوازنة، تعرف متى تكون هادي ومتى تكون جريء 👌"
-    return analysis_text
+        t = a.strip().lower()
+        if any(x in t for x in ["نشاط", "تجمع", "قائد", "اجتماعي", "عفوي"]):
+            score_active += 1
+        if any(x in t for x in ["هدوء", "تفكر", "سكوت", "وحدي", "صبر"]):
+            score_calm += 1
+        if any(x in t for x in ["عاطفي", "حب", "مشاعر", "اشتاق", "قلب"]):
+            score_love += 1
 
-# ------------------ Webhook ------------------
+    analysis = ""
+    if score_love > max(score_active, score_calm):
+        analysis += "شخصية عاطفية حساسة، تهتم بالآخرين وتقدر التفاصيل الصغيرة. "
+    if score_active > score_calm:
+        analysis += "شخصية منفتحة ونشيطة، تحب التجارب الجديدة ومليان طاقة. "
+    if score_calm > score_active:
+        analysis += "شخصية هادئة ومتزنة، تفكر قبل اتخاذ القرار وتحب الأمان والاستقرار. "
+    if not analysis:
+        analysis = "شخصية متوازنة، تعرف متى تكون هادي ومتى تكون جريء. "
+    
+    analysis += "اختياراتك تكشف عن ميولك، علاقاتك الاجتماعية وطريقة تعاملك مع الآخرين."
+    return analysis
+
+# ---------- Webhook ----------
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers.get('X-Line-Signature','')
+    signature = request.headers.get('X-Line-Signature', '')
     body = request.get_data(as_text=True)
     try:
         handler.handle(body, signature)
@@ -105,77 +81,140 @@ def callback():
         abort(400)
     return 'OK'
 
-# ------------------ المنطق ------------------
+# ---------- الرد على الرسائل ----------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     user_id = event.source.user_id
-    group_id = getattr(event.source,"group_id",None)
+    group_id = getattr(event.source, "group_id", None)
     text = event.message.text.strip()
     text_lower = text.lower()
 
-    # 🌟 مساعدة
-    if "مساعدة" in text_lower or "help" in text_lower:
+    # ---------- سؤال حب ----------
+    if "سؤال" in text_lower or "سوال" in text_lower:
+        asked = user_sessions.get(user_id, {}).get('asked_questions', set())
+        available = [q for q in questions if q not in asked]
+        if not available:
+            asked = set()
+            available = questions.copy()
+        q = random.choice(available)
+        user_sessions.setdefault(user_id, {})['asked_questions'] = asked | {q}
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
+        return
+
+    # ---------- تحدي ----------
+    if "تحدي" in text_lower:
+        asked = user_sessions.get(user_id, {}).get('asked_challenges', set())
+        available = [c for c in love_challenges if c not in asked]
+        if not available:
+            asked = set()
+            available = love_challenges.copy()
+        c = random.choice(available)
+        user_sessions.setdefault(user_id, {})['asked_challenges'] = asked | {c}
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=c))
+        return
+
+    # ---------- اعتراف ----------
+    if "اعتراف" in text_lower:
+        asked = user_sessions.get(user_id, {}).get('asked_confessions', set())
+        available = [c for c in confessions if c not in asked]
+        if not available:
+            asked = set()
+            available = confessions.copy()
+        c = random.choice(available)
+        user_sessions.setdefault(user_id, {})['asked_confessions'] = asked | {c}
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=c))
+        return
+
+    # ---------- اسألة شخصية ----------
+    if "اسألة شخصيه" in text_lower:
+        user_sessions[user_id] = {"step": 0, "answers": []}
+        first_q = random.choice(personality_questions)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=first_q))
+        return
+
+    # ---------- تسجيل إجابة أسئلة شخصية ----------
+    if user_id in user_sessions and 'step' in user_sessions[user_id]:
+        session = user_sessions[user_id]
+        if text in session.get('answers', []):
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                text="لقد أجبت على هذا من قبل، اختر إجابة أخرى أو رقم الخيار"
+            ))
+            return
+        session["answers"].append(text)
+        session["step"] += 1
+        if session["step"] >= len(personality_questions):
+            try:
+                name = line_bot_api.get_profile(user_id).display_name
+            except:
+                name = "المستخدم"
+            analysis = analyze_personality(session["answers"])
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}: {analysis}"))
+            del user_sessions[user_id]
+        else:
+            next_q = random.choice([q for q in personality_questions if q not in session["answers"]])
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=next_q))
+        return
+
+    # ---------- ألعاب جماعية ----------
+    if text_lower.startswith("لعبه"):
+        if not group_id:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="هذه اللعبة فقط للمجموعات"))
+            return
+        group_sessions.setdefault(group_id, {})
+        group_sessions[group_id].setdefault(user_id, {"answers": []})
+
+        # الألعاب مكتملة بعشر أسئلة لكل لعبة
+        if text_lower == "لعبه1":
+            game_qs = [f"لعبة1 سؤال {i}" for i in range(1,11)]
+        elif text_lower == "لعبه2":
+            game_qs = [f"لعبة2 سؤال {i}" for i in range(1,11)]
+        else:
+            game_qs = [f"لعبة3 سؤال {i}" for i in range(1,11)]
+
+        group_sessions[group_id][user_id]["game_qs"] = game_qs
+        group_sessions[group_id][user_id]["step"] = 0
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=game_qs[0]))
+        return
+
+    # ---------- تسجيل إجابة الألعاب ----------
+    if group_id in group_sessions and user_id in group_sessions[group_id]:
+        session = group_sessions[group_id][user_id]
+        if text in session.get('answers', []):
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                text="لقد أجبت على هذا من قبل، اختر إجابة أخرى أو رقم الخيار"
+            ))
+            return
+        session["answers"].append(text)
+        session["step"] += 1
+        if session["step"] >= len(session["game_qs"]):
+            try:
+                name = line_bot_api.get_profile(user_id).display_name
+            except:
+                name = "مشارك"
+            analysis = analyze_personality(session["answers"])
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}: {analysis}"))
+            del group_sessions[group_id][user_id]
+        else:
+            next_q = session["game_qs"][session["step"]]
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=next_q))
+        return
+
+    # ---------- مساعدة ----------
+    if "مساعدة" in text_lower:
         help_text = (
-            "❤️ أوامر البوت:\n"
-            "- 'سؤال' أو 'سوال' → سؤال حب أو صراحة عشوائي.\n"
-            "- 'تحدي' → تحدي حب رومانسي.\n"
-            "- 'اعتراف' → سؤال اعتراف صريح.\n"
-            "- 'حلل شخصيتي' أو 'تحليل' → بدء تحليل الشخصية الفردي.\n"
-            "- 'لعبه1' → بدء لعبة الغابة.\n"
-            "- 'لعبه2' → بدء لعبة الجزيرة.\n"
-            "- 'لعبه3' → بدء لعبة المدينة.\n"
-            "- يمكن لأكثر من شخص المشاركة في اللعب الجماعي.\n"
-            "⚠️ البوت يتعرف على رقم الخيار أو نص مشابه للإجابة.\n"
-            "كل مرة الأسئلة والتحديات تتغير تلقائيًا 💫"
+            "أوامر البوت:\n"
+            "- سؤال أو سوال → سؤال حب وصراحة.\n"
+            "- تحدي → تحدي عاطفي.\n"
+            "- اعتراف → اعتراف صريح.\n"
+            "- اسألة شخصيه → أسئلة شخصية.\n"
+            "- لعبه1 / لعبه2 / لعبه3 → ألعاب جماعية.\n"
+            "- مساعدة → عرض الأوامر."
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # أسئلة حب وصراحة
-    if "سؤال" in text_lower or "سوال" in text_lower:
-        asked = user_asked_questions.get(user_id,set())
-        available = [q for q in questions if q not in asked]
-        if not available:
-            user_asked_questions[user_id] = set()
-            available = questions.copy()
-        q = random.choice(available)
-        user_asked_questions.setdefault(user_id,set()).add(q)
-        line_bot_api.reply_message(event.reply_token,TextSendMessage(text=q))
-        return
-
-    # تحدي
-    if "تحدي" in text_lower:
-        c = random.choice(love_challenges)
-        line_bot_api.reply_message(event.reply_token,TextSendMessage(text=f"💌 {c}"))
-        return
-
-    # اعتراف
-    if "اعتراف" in text_lower:
-        conf = random.choice(confessions)
-        line_bot_api.reply_message(event.reply_token,TextSendMessage(text=f"🩷 {conf}"))
-        return
-
-    # تحليل شخصية فردي
-    if "حلل شخصيتي" in text_lower or "تحليل" in text_lower:
-        user_sessions[user_id] = {"step":0,"answers":[]}
-        q = random.choice(personality_questions)
-        line_bot_api.reply_message(event.reply_token,TextSendMessage(
-            text=f"🧠 نبدأ تحليل شخصيتك!\nالسؤال 1:\n{q}"
-        ))
-        return
-
-    # لعب جماعي
-    if text_lower.startswith("لعبه") and group_id:
-        game_id = text_lower[-1]
-        if game_id in games:
-            group_sessions.setdefault(group_id,{})
-            group_sessions[group_id][user_id] = {"game":game_id,"step":0,"answers":[]}
-            first_q = games[game_id]["questions"][0]
-            opts = "\n".join([f"{i+1}. {o}" for i,o in enumerate(first_q["options"])])
-            line_bot_api.reply_message(event.reply_token,TextSendMessage(
-                text=f"🎮 {games[game_id]['name']} - سؤال 1:\n{first_q['q']}\n{opts}"))
-        return
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="الرجاء كتابة أحد الأوامر المتاحة: مساعدة"))
 
 if __name__ == "__main__":
-    port = int(os.environ.get('PORT',5000))
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
