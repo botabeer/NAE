@@ -1,7 +1,7 @@
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, Mention
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import os, random
 
 app = Flask(__name__)
@@ -30,24 +30,14 @@ love_challenges = [
     "شارك معه ذكرى ما تنساها.",
     "قل له شي تحبه فيه ما قد قلته.",
     "ارسله صورة قديمة تجمعكم.",
-    "احكي له أول لحظة خفق فيها قلبك له.",
-    "اكتب له رسالة صوتية قصيرة.",
-    "خطط لمفاجأة بسيطة له اليوم.",
-    "ارسل له رسالة حب في وقت غير متوقع.",
-    "اكتب له سبب يخليك تبتسم لما تتذكره.",
-    "اذكر له عادة بسيطة تحبها فيه."
+    "احكي له أول لحظة خفق فيها قلبك له."
 ]
 confessions = [
     "اعترف بأول شخص جذبك في حياتك.",
     "اعترف بأكثر عادة سيئة عندك.",
     "اعترف بشي ندمت عليه.",
     "اعترف باسم أول حب في حياتك.",
-    "اعترف بأكثر شيء تخاف منه.",
-    "اعترف بسر ما قلته لأحد.",
-    "اعترف بموقف محرج صار لك.",
-    "اعترف بشي جميل فيك ما تقوله كثير.",
-    "اعترف بشخص تتمنى تعتذر له.",
-    "اعترف بأكثر موقف أثر فيك."
+    "اعترف بأكثر شيء تخاف منه."
 ]
 
 # ------------------ الألعاب ------------------
@@ -92,8 +82,8 @@ games = {
 
 # ------------------ جلسات المستخدمين ------------------
 user_asked_questions = {}
-user_sessions = {}      # جلسة لكل مستخدم {game, step, answers, answers_map}
-group_sessions = {}     # جلسة جماعية {group_id:{user_id:{game, step, answers, answers_map}}}
+user_sessions = {}      # فردي
+group_sessions = {}     # جماعي
 
 # ------------------ تحليل الشخصية ------------------
 def analyze_personality(answers, name):
@@ -123,7 +113,7 @@ def analyze_personality(answers, name):
 # ------------------ Webhook ------------------
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers.get('X-Line-Signature', '')
+    signature = request.headers.get('X-Line-Signature','')
     body = request.get_data(as_text=True)
     try:
         handler.handle(body, signature)
@@ -136,10 +126,12 @@ def callback():
 def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
-    group_id = getattr(event.source, "group_id", None)
+    group_id = getattr(event.source,"group_id",None)
 
-    # أوامر المساعدة
-    if text.lower() == "مساعدة":
+    text_lower = text.lower()
+
+    # مساعدة
+    if text_lower=="مساعدة":
         help_text = (
             "❤️ أوامر البوت:\n"
             "- 'سؤال' → سؤال حب/صراحة.\n"
@@ -154,7 +146,7 @@ def handle_message(event):
         return
 
     # أسئلة حب/صراحة
-    if text.lower() in ["سؤال","سوال"]:
+    if text_lower in ["سؤال","سوال"]:
         asked = user_asked_questions.get(user_id,set())
         available = [q for q in questions if q not in asked]
         if not available:
@@ -166,20 +158,20 @@ def handle_message(event):
         return
 
     # تحدي
-    if text.lower() == "تحدي":
+    if text_lower=="تحدي":
         c = random.choice(love_challenges)
         line_bot_api.reply_message(event.reply_token,TextSendMessage(text=f"💌 {c}"))
         return
 
     # اعتراف
-    if text.lower() == "اعتراف":
+    if text_lower=="اعتراف":
         conf = random.choice(confessions)
         line_bot_api.reply_message(event.reply_token,TextSendMessage(text=f"🩷 {conf}"))
         return
 
-    # بدء لعبة
-    if text.lower() in ["لعبه 1","لعبه 2","لعبه 3"]:
-        game_id = text[-1]
+    # بدء الألعاب
+    if text_lower in ["لعبه 1","لعبه 2","لعبه 3"]:
+        game_id = text_lower[-1]
         session = {"game":game_id,"step":0,"answers":[],"answers_map":{}}
         if group_id:
             group_sessions.setdefault(group_id,{})
@@ -188,16 +180,18 @@ def handle_message(event):
             user_sessions[user_id] = session
         first_q = games[game_id]["questions"][0]
         opts = "\n".join([f"{i+1}. {o}" for i,o in enumerate(first_q["options"])])
-        line_bot_api.reply_message(event.reply_token,TextSendMessage(text=f"🎮 لعبة {games[game_id]['name']} - سؤال 1:\n{first_q['q']}\n{opts}"))
+        line_bot_api.reply_message(event.reply_token,TextSendMessage(
+            text=f"🎮 لعبة {games[game_id]['name']} - سؤال 1:\n{first_q['q']}\n{opts}"))
         return
 
-    # التعامل مع اللعب الجماعي والفردي
+    # التعامل مع الجلسة
     if group_id in group_sessions and user_id in group_sessions[group_id]:
         session = group_sessions[group_id][user_id]
     elif user_id in user_sessions:
         session = user_sessions[user_id]
     else:
-        line_bot_api.reply_message(event.reply_token,TextSendMessage(text="⚠️ لم أفهم. اكتب 'مساعدة' لرؤية الأوامر."))
+        line_bot_api.reply_message(event.reply_token,TextSendMessage(
+            text="⚠️ لم أفهم. اكتب 'مساعدة' لرؤية الأوامر."))
         return
 
     # تسجيل الإجابة
@@ -205,12 +199,13 @@ def handle_message(event):
     session["answers_map"][session["step"]] = text
     session["step"] +=1
 
-    # التالي
+    # متابعة الأسئلة
     game_id = session["game"]
     if session["step"] < len(games[game_id]["questions"]):
         q = games[game_id]["questions"][session["step"]]
         opts = "\n".join([f"{i+1}. {o}" for i,o in enumerate(q["options"])])
-        line_bot_api.reply_message(event.reply_token,TextSendMessage(text=f"🎮 سؤال {session['step']+1}:\n{q['q']}\n{opts}"))
+        line_bot_api.reply_message(event.reply_token,TextSendMessage(
+            text=f"🎮 سؤال {session['step']+1}:\n{q['q']}\n{opts}"))
     else:
         # نهاية اللعبة → التحليل
         try:
@@ -219,13 +214,13 @@ def handle_message(event):
             name = "مشارك"
         analysis = analyze_personality(session["answers"],name)
         if group_id:
-            mention_text = f"@{name} \n{analysis}"
+            mention_text = f"@{name}\n{analysis}"
             line_bot_api.push_message(group_id,TextSendMessage(text=mention_text))
             del group_sessions[group_id][user_id]
         else:
             line_bot_api.reply_message(event.reply_token,TextSendMessage(text=analysis))
             del user_sessions[user_id]
 
-if __name__ == "__main__":
-    port = int(os.environ.get('PORT',5000))
-    app.run(host='0.0.0.0', port=port)
+if __name__=="__main__":
+    port = int(os.environ.get("PORT",5000))
+    app.run(host="0.0.0.0",port=port)
