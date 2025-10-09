@@ -1,22 +1,25 @@
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, TemplateSendMessage, ButtonsTemplate, MessageAction
+from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import random
 import os
+import re
 
 app = Flask(__name__)
 
+# مفاتيح LINE
 LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET')
 
 if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
-    print("خطأ: تأكد من وضع LINE_CHANNEL_ACCESS_TOKEN و LINE_CHANNEL_SECRET في متغيرات البيئة")
+    print("⚠️ تأكد من وضع LINE_CHANNEL_ACCESS_TOKEN و LINE_CHANNEL_SECRET في متغيرات البيئة")
     exit(1)
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
+# الأسئلة
 questions = {
     "حب": [
         "من أكثر شخص تحبه في حياتك؟",
@@ -40,78 +43,90 @@ questions = {
     ],
     "من_الأكثر": [
         "من الأكثر مرحًا بين أصدقائك؟",
-        "من الأكثر جرأة في حياتك؟",
-        "من الأكثر كذبًا بين أصدقائك؟"
+        "من الأكثر كذبًا؟",
+        "من الأكثر رومانسية؟",
+        "من الأكثر غموضًا؟",
+        "من الأكثر طيبة؟",
+        "من الأكثر عصبية؟",
+        "من الأكثر فوضى؟",
+        "من الأكثر أنانية؟",
+        "من الأكثر خوفًا؟",
+        "من الأكثر تفكيرًا بالمستقبل؟",
+        "من الأكثر هدوءًا؟",
+        "من الأكثر ضحكًا؟",
+        "من الأكثر نسيانًا؟"
     ]
 }
 
-welcome_message = "أهلا! اختر نوع الأسئلة: حب، شخصية، صداقة، جنس، أو لعبة من الأكثر."
+# رسالة المساعدة
 help_message = """
-أوامر البوت المتاحة:
-- حب: أسئلة عن الحب
-- شخصية: أسئلة عن شخصيتك
-- صداقة: أسئلة عن الصداقة
-- جنس: أسئلة عن الجنس
-- من_الأكثر: لعبة من الأكثر
-- مساعدة: عرض هذه الرسالة
+📘 أوامر البوت:
+- حب → أسئلة عن الحب ❤️
+- شخصية → أسئلة عن شخصيتك 🧠
+- صداقة → أسئلة عن الأصدقاء 🤝
+- جنس → أسئلة جريئة ⚡️
+- من الأكثر → لعبة من الأكثر 🎯
+- مساعدة → عرض هذه القائمة 🧾
 """
 
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers.get('X-Line-Signature', '')
     body = request.get_data(as_text=True)
+
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        print("خطأ: التوقيع غير صحيح")
+        print("❌ خطأ في التوقيع")
         return 'Invalid signature', 200
     except Exception as e:
-        print(f"خطأ: {e}")
+        print(f"❌ خطأ: {e}")
         return 'Error', 200
     return 'OK', 200
 
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    text = event.message.text.lower()
+    text = event.message.text.strip().lower()
 
-    if text == "مساعدة":
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=help_message)
-        )
+    # --- من الأكثر (أي كتابة قريبة منها)
+    if re.search(r"(من|مين)?\s*ال?اكثر", text):
+        q = random.choice(questions["من_الأكثر"])
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
         return
 
-    if text in ["حب","شخصية","صداقة","جنس"]:
-        q = random.choice(questions[text])
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=q)
-        )
+    # --- حب
+    if re.search(r"حب", text):
+        q = random.choice(questions["حب"])
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
         return
 
-    if text == "من_الأكثر":
-        question = random.choice(questions["من_الأكثر"])
-        buttons_template = ButtonsTemplate(
-            title="لعبة من الأكثر",
-            text=question,
-            actions=[
-                MessageAction(label="أ: صديق 1", text="أ"),
-                MessageAction(label="ب: صديق 2", text="ب"),
-                MessageAction(label="ج: صديق 3", text="ج")
-            ]
-        )
-        template_message = TemplateSendMessage(
-            alt_text="لعبة من الأكثر",
-            template=buttons_template
-        )
-        line_bot_api.reply_message(event.reply_token, template_message)
+    # --- شخصية
+    if re.search(r"شخص", text):
+        q = random.choice(questions["شخصية"])
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
         return
 
-    # إذا لم يكن الأمر معروف
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=welcome_message)
-    )
+    # --- صداقة
+    if re.search(r"صداق", text):
+        q = random.choice(questions["صداقة"])
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
+        return
+
+    # --- جنس
+    if re.search(r"جنس", text):
+        q = random.choice(questions["جنس"])
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
+        return
+
+    # --- مساعدة
+    if re.search(r"مساعد", text):
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_message))
+        return
+
+    # --- أي شيء آخر (يتجاهله تمامًا)
+    return
+
 
 if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
