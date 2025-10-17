@@ -430,7 +430,7 @@ def handle_message(event):
             if m:
                 ans_num = int(m.group(1))
         if ans_num is None:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="اكتب رقم الخيار فقط من 1 إلى 4."))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=""))
             return
 
         # get chosen option text for scoring
