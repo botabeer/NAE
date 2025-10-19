@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, random, typing
+import os, typing
 
 app = Flask(__name__)
 
@@ -30,6 +30,16 @@ confessions_file = load_file_lines("confessions.txt")
 personal_file = load_file_lines("personality.txt")
 
 # -------------------------
+# تتبع مؤشر كل مستخدم لكل نوع
+# -------------------------
+user_indices = {
+    "سؤال": {},
+    "تحدي": {},
+    "اعتراف": {},
+    "شخصي": {}
+}
+
+# -------------------------
 # Webhook
 # -------------------------
 @app.route("/callback", methods=["POST"])
@@ -43,11 +53,12 @@ def callback():
     return "OK"
 
 # -------------------------
-# المنطق الأساسي
+# التعامل مع الرسائل
 # -------------------------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip()
+    user_id = event.source.user_id
 
     if text == "مساعدة":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(
@@ -55,24 +66,27 @@ def handle_message(event):
         ))
         return
 
-    if text == "سؤال":
-        q = random.choice(questions_file)
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
-        return
+    if text in ["سؤال", "تحدي", "اعتراف", "شخصي"]:
+        # اختيار الملف المناسب
+        if text == "سؤال":
+            file_list = questions_file
+        elif text == "تحدي":
+            file_list = challenges_file
+        elif text == "اعتراف":
+            file_list = confessions_file
+        else:
+            file_list = personal_file
 
-    if text == "تحدي":
-        c = random.choice(challenges_file)
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=c))
-        return
+        # مؤشر المستخدم
+        index = user_indices[text].get(user_id, 0)
+        msg = file_list[index]
 
-    if text == "اعتراف":
-        cf = random.choice(confessions_file)
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=cf))
-        return
+        # إرسال السؤال أو التحدي أو الاعتراف أو الشخصي
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
-    if text == "شخصي":
-        p = random.choice(personal_file)
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=p))
+        # تحديث المؤشر بشكل دائري
+        index = (index + 1) % len(file_list)
+        user_indices[text][user_id] = index
         return
 
 if __name__ == "__main__":
