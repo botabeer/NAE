@@ -2,11 +2,13 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, random, typing, re
+import os, typing, re
 
 app = Flask(__name__)
 
-# LINE credentials from environment
+# -------------------------
+# LINE credentials
+# -------------------------
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
@@ -16,7 +18,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # -------------------------
-# Games: 10 games, each 5 questions
+# Games: 10 games, 5 questions each
 # -------------------------
 games: typing.Dict[str, typing.List[str]] = {
     "لعبه1": [
@@ -91,9 +93,9 @@ games: typing.Dict[str, typing.List[str]] = {
     ]
 }
 
-# -----------------------------
-# Default personality scoring
-# -----------------------------
+# -------------------------
+# Personality keywords & description
+# -------------------------
 KEYWORDS = {
     "قيادية": [r"\bتدخل\b", r"\bتقترب\b", r"\bتسرع\b", r"\bتركض\b", r"\bأهاجم\b", r"\bأقبل\b"],
     "تعبيرية": [r"\bأتحدث\b", r"\bأتواصل\b", r"\bأشارك\b", r"\bألوّح\b", r"\bأضحك\b"],
@@ -102,20 +104,20 @@ KEYWORDS = {
 }
 
 DESCRIPTIONS = {
-    "قيادية": "الشخصية القيادية: استقلالية، عملية، تحب السيطرة.",
-    "تعبيرية": "الشخصية التعبيرية: اجتماعية، ودودة، محبة للتواصل.",
-    "تحليلية": "الشخصية التحليلية: عقلانية، دقيقة، تعتمد المنطق.",
-    "داعمة": "الشخصية الداعمة: هادئة، مساندة، تفضل الاستقرار."
+    "قيادية": "الشخصية القيادية: مستقلة، عملية، تحب السيطرة واتخاذ القرارات بسرعة، وتركز على النتائج، تتحمل المسؤولية، وتمتلك طاقة عالية لتحفيز الآخرين.",
+    "تعبيرية": "الشخصية التعبيرية: اجتماعية، ودودة، محبة للتواصل، تعبر عن مشاعرها بوضوح، تمتلك قدرة على التأثير على المحيطين بها، وتحب الإبداع.",
+    "تحليلية": "الشخصية التحليلية: دقيقة، عقلانية، تحب دراسة التفاصيل واتخاذ القرارات على أساس منطقي، تميل للتخطيط، وتحليل الأمور قبل التحرك.",
+    "داعمة": "الشخصية الداعمة: هادئة، مساندة، تحب تقديم الدعم للآخرين، تتحلى بالصبر، وتميل إلى خلق جو من الأمان والاستقرار حولها."
 }
 
-# -----------------------------
-# Group sessions structure
-# -----------------------------
+# -------------------------
+# Group sessions
+# -------------------------
 group_sessions: typing.Dict[str, typing.Dict] = {}
 
-# -----------------------------
-# Helpers
-# -----------------------------
+# -------------------------
+# Helper functions
+# -------------------------
 def extract_option_text(game_key: str, q_index: int, chosen: int) -> str:
     try:
         q = games[game_key][q_index]
@@ -149,7 +151,13 @@ def score_answers_to_personality(answers: typing.List[typing.Tuple[int,int,str]]
 
 def build_final_analysis_text(name: str, trait_key: str) -> str:
     desc = DESCRIPTIONS.get(trait_key, "")
-    return f"{name}\n{desc}"
+    return (
+        f"{name}، تحليل شخصيتك المفصل:\n"
+        f"{desc}\n"
+        "يعكس اختيارك للأسئلة أسلوبك في مواجهة المواقف، "
+        "طريقة تفكيرك، تفاعلك الاجتماعي، تحليلك للمشاكل، "
+        "وأسلوبك في اتخاذ القرارات. هذه التحليلات تساعدك على فهم نقاط قوتك وضعفك."
+    )
 
 def get_display_name(source) -> str:
     try:
@@ -161,9 +169,9 @@ def get_display_name(source) -> str:
     except Exception:
         return "عضو"
 
-# -----------------------------
+# -------------------------
 # LINE webhook
-# -----------------------------
+# -------------------------
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers.get("X-Line-Signature", "")
@@ -181,58 +189,75 @@ def handle_message(event):
     group_id = getattr(source, "group_id", None)
     text = getattr(event.message, "text", "").strip()
 
+    # مساعدة
     if text == "مساعدة":
         help_text = (
             "أوامر البوت:\n\n"
-            "سؤال → يعطيك سؤال عشوائي.\n\n"
-            "تحدي → يعطيك تحدي.\n\n"
-            "اعتراف → يعطيك اعتراف.\n\n"
-            "اسئلة شخصية → سؤال شخصي عشوائي.\n\n"
-            "لعبهX → يبدأ لعبة جماعية (X من 1 إلى 10).\n"
-            "كل عضو يرسل 'ابدأ' للانضمام ثم يجيب بالأرقام 1 إلى 4.\n"
+            "ابدأ → للانضمام للعبة.\n"
+            "اختر لعبة 1-10 للعب.\n"
+            "الأعضاء يجيبون بالأرقام 1 إلى 4.\n"
+            "سؤال → يعطيك سؤال عشوائي.\n"
+            "تحدي → يعطيك تحدي.\n"
+            "اعتراف → يعطيك اعتراف.\n"
+            "شخصي → سؤال شخصي عشوائي."
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    if group_id and text.startswith("لعبه"):
-        if text not in games:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="اكتب لعبه1 حتى لعبه10 لبدء لعبة."))
+    # بدء أو الانضمام للعبة
+    if group_id:
+        gs = group_sessions.get(group_id)
+        if not gs:
+            group_sessions[group_id] = {"game": "لعبه1", "players": {}, "state": "joining"}
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                text="تم بدء جلسة. أرسل 'ابدأ' للانضمام واختر اللعبة 1-10."
+            ))
             return
-        group_sessions[group_id] = {"game": text, "players": {}, "state": "joining"}
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"تم بدء الجلسة: {text}\nكل عضو يرسل 'ابدأ' للانضمام."))
-        return
 
-    if group_id and text == "ابدأ":
-        gs = group_sessions.get(group_id)
-        if not gs or gs.get("state") != "joining": return
-        players = gs["players"]
-        if user_id not in players:
-            display_name = get_display_name(source)
-            players[user_id] = {"name": display_name, "answers":[],"current_q":0}
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{display_name} انضم للعبة."))
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="أنت بالفعل في اللعبة."))
-        return
+        # انضمام اللاعب
+        if text == "ابدأ":
+            players = group_sessions[group_id]["players"]
+            if user_id not in players:
+                display_name = get_display_name(source)
+                players[user_id] = {"name": display_name, "answers": [], "current_q": 0}
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{display_name} انضم للعبة."))
+            else:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="أنت بالفعل في اللعبة."))
+            return
 
-    if group_id and text in ["1","2","3","4"]:
-        gs = group_sessions.get(group_id)
-        if not gs or gs.get("state") != "joining": return
-        players = gs["players"]
-        if user_id not in players: return
-        player = players[user_id]
-        chosen_num = int(text)
-        q_index = player["current_q"]
-        chosen_text = extract_option_text(gs["game"], q_index, chosen_num)
-        player["answers"].append((q_index, chosen_num, chosen_text))
-        player["current_q"] += 1
-        if player["current_q"] < len(games[gs["game"]]):
-            next_q_text = games[gs["game"]][player["current_q"]]
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{player['name']}، {next_q_text}"))
-        else:
-            trait = score_answers_to_personality(player["answers"])
-            final_text = build_final_analysis_text(player["name"], trait)
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{player['name']} انتهى من اللعبة.\n{final_text}\nوداعاً"))
-        return
+        # اختيار اللعبة
+        if text in [str(i) for i in range(1,11)]:
+            group_sessions[group_id]["game"] = f"لعبه{text}"
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                text=f"تم اختيار اللعبة {text} للجلسة."
+            ))
+            # إرسال أول سؤال لكل لاعب
+            for player_id, player in group_sessions[group_id]["players"].items():
+                player["answers"] = []
+                player["current_q"] = 0
+                first_q = games[f"لعبه{text}"][0]
+                line_bot_api.push_message(player_id, TextSendMessage(text=f"{player['name']}، {first_q}"))
+            return
+
+        # الرد على الأسئلة
+        if text in ["1","2","3","4"]:
+            player = group_sessions[group_id]["players"].get(user_id)
+            if not player: return
+            chosen_num = int(text)
+            q_index = player["current_q"]
+            game_key = group_sessions[group_id]["game"]
+            chosen_text = extract_option_text(game_key, q_index, chosen_num)
+            player["answers"].append((q_index, chosen_num, chosen_text))
+            player["current_q"] += 1
+
+            if player["current_q"] < len(games[game_key]):
+                next_q_text = games[game_key][player["current_q"]]
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{player['name']}، {next_q_text}"))
+            else:
+                trait = score_answers_to_personality(player["answers"])
+                final_text = build_final_analysis_text(player["name"], trait)
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{player['name']} انتهى من اللعبة.\n{final_text}"))
+            return
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
