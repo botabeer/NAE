@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, random, typing, re, json
+import os, random, typing, json
 
 app = Flask(__name__)
 
@@ -101,22 +101,23 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(HELP_TEXT))
         return
 
-    # ألعاب
+    # ألعاب لعبه1 إلى لعبه10
     if text.startswith("لعبه"):
         game_number = text.replace("لعبه", "")
-        game_key = f"game{game_number}"
-        if game_key in games:
-            question = games[game_key]["question"]
-            options = games[game_key]["options"]
-            msg = f"🎮 **{user_id}**، لعبتك رقم {game_number}:\n{question}\n"
-            for idx, opt in enumerate(options, start=1):
-                msg += f"{idx}. {opt}\n"
-            msg += "\nاختر رقم الإجابة 1-4"
-            user_answers[user_id] = {"game": game_number, "answers": []}
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(msg))
-            return
+        if game_number.isdigit() and 1 <= int(game_number) <= 10:
+            game_key = f"game{game_number}"
+            if game_key in games:
+                question = games[game_key]["question"]
+                options = games[game_key]["options"]
+                msg = f"🎮 **{user_id}**، لعبتك رقم {game_number}:\n{question}\n"
+                for idx, opt in enumerate(options, start=1):
+                    msg += f"{idx}. {opt}\n"
+                msg += "\nاختر رقم الإجابة 1-4"
+                user_answers[user_id] = {"game": game_number, "answers": []}
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(msg))
+                return
         else:
-            return
+            return  # أي أمر خارج النطاق يتم تجاهله
 
     # اختيار الإجابة
     if text.isdigit() and int(text) in range(1,5):
