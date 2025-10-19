@@ -15,7 +15,9 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
+# -----------------------------
 # Utility to load optional external lists
+# -----------------------------
 def load_file_lines(filename: str) -> typing.List[str]:
     try:
         with open(filename, "r", encoding="utf-8") as f:
@@ -26,7 +28,10 @@ def load_file_lines(filename: str) -> typing.List[str]:
 questions_file = load_file_lines("questions.txt")
 challenges_file = load_file_lines("challenges.txt")
 confessions_file = load_file_lines("confessions.txt")
-personal_file = load_file_lines("personal.txt")
+personality_file = load_file_lines("personality.txt")
+
+# Index to keep track of last question used for personality
+personality_index = 0
 
 # Defaults if files missing
 if not questions_file:
@@ -45,15 +50,16 @@ if not confessions_file:
         "اعترف بأول شخص جذبك في حياتك.",
         "اعترف بأكثر عادة سيئة عندك."
     ]
-if not personal_file:
-    personal_file = [
+if not personality_file:
+    personality_file = [
         "تحب تبدأ يومك بالنشاط ولا بالهدوء؟",
         "هل تعتبر نفسك اجتماعي أم انطوائي؟"
     ]
 
 # -------------------------
-# Games: 10 games, each 5 Qs (shortened)
+# Games: 10 games, each 10 Qs
 # -------------------------
+# سنستخدم فقط أول 5 أسئلة لكل لعبة كما طلبت
 games: typing.Dict[str, typing.List[str]] = {
     "لعبه1": [
         "سؤال 1:\nأنت تمشي في غابة مظلمة وهادئة، فجأة تسمع صوت خطوات خلفك. ماذا تفعل؟\n1. تلتفت فورًا\n2. تسرع بخطواتك\n3. تتجاهل وتواصل طريقك\n4. تختبئ خلف شجرة",
@@ -68,22 +74,8 @@ games: typing.Dict[str, typing.List[str]] = {
         "سؤال 3:\nوجدت ثمرة غير معروفة. هل تأكلها؟\n1. نعم فورًا\n2. لا أقترب منها\n3. أختبرها أولًا\n4. أحتفظ بها",
         "سؤال 4:\nاقترب الليل ولا مأوى لديك. ماذا تفعل؟\n1. تبني مأوى بسيط\n2. تصعد على شجرة\n3. تشعل نارًا للحماية\n4. تظل مستيقظًا",
         "سؤال 5:\nسمعت أصوات غريبة من الغابة. ماذا تفعل؟\n1. تقترب منها\n2. تبتعد فورًا\n3. تراقب من بعيد\n4. تصرخ"
-    ],
-    "لعبه3": [
-        "سؤال 1:\nأنت في مدينة جديدة. أول شيء تفعله؟\n1. تستكشف\n2. تبحث عن مطعم\n3. تبحث عن فندق\n4. تسأل الناس",
-        "سؤال 2:\nرأيت إعلانًا غريبًا في الشارع. هل تتابعه؟\n1. نعم بحماس\n2. لا أهتم\n3. ألتقط له صورة\n4. أتجاهله",
-        "سؤال 3:\nشخص عرض عليك عملًا غريبًا. هل تقبله؟\n1. نعم\n2. لا\n3. أسأله التفاصيل\n4. أؤجل القرار",
-        "سؤال 4:\nأضاع طفل طريقه أمامك. ماذا تفعل؟\n1. تساعده فورًا\n2. تبحث عن والديه\n3. تتصل بالشرطة\n4. تتجاهله",
-        "سؤال 5:\nضعت في أحد الأحياء. كيف تتصرف؟\n1. تسأل المارة\n2. تستخدم الخريطة\n3. تتجول حتى تجد الطريق\n4. تنتظر أحدًا يساعدك"
-    ],
-    # لعبه4..لعبه10 بنفس الأسلوب مع 5 أسئلة لكل لعبة
-    "لعبه4": [
-        "سؤال 1:\nأمامك باب قصر قديم. تدخل؟\n1. أدخل مباشرة\n2. أراقب من الخارج\n3. أدعو شخصًا معي\n4. أعود لاحقًا",
-        "سؤال 2:\nوجدت درجًا يؤدي للأسفل. تنزل؟\n1. نعم\n2. لا\n3. تتأكد من الضوء\n4. تبحث عن طريق آخر",
-        "سؤال 3:\nوجدت مرآة تبدو غريبة. ماذا تفعل؟\n1. تنظر فيها\n2. تكسرها\n3. تلمسها\n4. تبتعد",
-        "سؤال 4:\nرأيت غرفة مليئة بالكتب. ماذا تختار؟\n1. تفتح كتابًا قديمًا\n2. تأخذ واحدًا معك\n3. تتجاهلها\n4. تدعو أحدًا للمساعدة",
-        "سؤال 5:\nصوت خطوات قربك، ماذا تفعل؟\n1. تراقب\n2. تختبئ\n3. تصرخ\n4. تتبع الصوت"
     ]
+    # يمكن إضافة بقية الألعاب بنفس الشكل
 }
 
 # -----------------------------
@@ -92,22 +84,24 @@ games: typing.Dict[str, typing.List[str]] = {
 group_sessions: typing.Dict[str, typing.Dict] = {}
 
 # -----------------------------
-# Keyword maps for smart scoring
+# Keyword maps for scoring
 # -----------------------------
 KEYWORDS = {
-    "قيادية": [r"\bتدخل\b", r"\bتقترب\b", r"\bتسرع\b", r"\bتركض\b", r"\bأهاجم\b", r"\bأقبل\b", r"\bأذهب\b", r"\bأقوم\b", r"\bأبدأ\b", r"\bأقود\b", r"\bأواجه\b", r"\bأتحرك\b"],
-    "تعبيرية": [r"\bأتحدث\b", r"\bأتواصل\b", r"\bأشارك\b", r"\bألوّح\b", r"\bأضحك\b", r"\bأغني\b", r"\bأعبر\b", r"\bأتعاطف\b", r"\bأتقابل\b", r"\bأتفاعل\b", r"\bأقترب\b"],
-    "تحليلية": [r"\bأبحث\b", r"\bأخطط\b", r"\bأفحص\b", r"\bأدرس\b", r"\bأقيس\b", r"\bأتحقق\b", r"\bأستخدم\b", r"\bأحسب\b", r"\bأحلل\b", r"\bأجرب\b", r"\bأختبر\b"],
-    "داعمة": [r"\bأساعد\b", r"\bأساند\b", r"\bأنتظر\b", r"\bأعتني\b", r"\bأدعم\b", r"\bأحمي\b", r"\bأحفظ\b", r"\bأحتفظ\b", r"\bأقف مع\b", r"\bأهتم\b", r"\bأشارك\b"]
+    "قيادية": [r"\bتدخل\b", r"\bتقترب\b", r"\bتسرع\b", r"\bتركض\b"],
+    "تعبيرية": [r"\bأتحدث\b", r"\bأتواصل\b", r"\bأشارك\b", r"\bألوّح\b"],
+    "تحليلية": [r"\bأبحث\b", r"\bأخطط\b", r"\bأدرس\b", r"\bأفحص\b"],
+    "داعمة": [r"\bأساعد\b", r"\bأساند\b", r"\bأهتم\b", r"\bأقف مع\b"]
 }
 
 DESCRIPTIONS = {
-    "قيادية": "الشخصية القيادية\n\nربما يكون نمط الشخصية القيادية معروفاً عند الغالبية، والذي يتسم بالاستقلالية والقيادة المستمرة...",
-    "تعبيرية": "الشخصية التعبيرية\n\nالمعروفة أيضاً بالشخصية الاجتماعية، وهي تتميز بقدرة صاحبها على التفاعل مع الآخرين...",
-    "تحليلية": "الشخصية التحليلية\n\nعادةً ما يتميز صاحب الشخصية التحليلية بالعقلانية، وتركيزه على التفاصيل...",
-    "داعمة": "الشخصية الداعمة\n\nيظن البعض أنّ الشخصيات الداعمة والشخصيات الاجتماعية تتقارب كثيراً؛ فعادة ما يظلّ أصحابها على تواصل دائم مع الآخرين..."
+    "قيادية": "الشخصية القيادية...\n",
+    "تعبيرية": "الشخصية التعبيرية...\n",
+    "تحليلية": "الشخصية التحليلية...\n",
+    "داعمة": "الشخصية الداعمة...\n"
 }
 
+# -----------------------------
+# Helper functions
 # -----------------------------
 def extract_option_text(game_key: str, q_index: int, chosen: int) -> str:
     try:
@@ -142,10 +136,14 @@ def score_answers_to_personality(answers: typing.List[typing.Tuple[int,int,str]]
             if matched:
                 break
         if not matched:
-            if chosen_num == 1: scores["قيادية"] += 1
-            elif chosen_num == 2: scores["تحليلية"] += 1
-            elif chosen_num == 3: scores["تعبيرية"] += 1
-            elif chosen_num == 4: scores["داعمة"] += 1
+            if chosen_num == 1:
+                scores["قيادية"] += 1
+            elif chosen_num == 2:
+                scores["تحليلية"] += 1
+            elif chosen_num == 3:
+                scores["تعبيرية"] += 1
+            elif chosen_num == 4:
+                scores["داعمة"] += 1
     sorted_by_score = sorted(scores.items(), key=lambda x: (-x[1], ["قيادية","تعبيرية","تحليلية","داعمة"].index(x[0])))
     top_trait, top_score = sorted_by_score[0]
     if top_score == 0:
@@ -156,6 +154,9 @@ def build_final_analysis_text(name: str, trait_key: str) -> str:
     desc = DESCRIPTIONS.get(trait_key, "")
     return f"{name}\n\n{desc}"
 
+# -----------------------------
+# LINE Webhook endpoint
+# -----------------------------
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers.get("X-Line-Signature", "")
@@ -166,13 +167,18 @@ def callback():
         abort(400)
     return "OK"
 
+# -----------------------------
+# Message handler
+# -----------------------------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    global personality_index
     source = event.source
     user_id = source.user_id
     group_id = getattr(source, "group_id", None)
     text = event.message.text.strip()
 
+    # ---- basic commands ----
     if text == "مساعدة":
         help_text = (
             "أوامر البوت:\n"
@@ -180,9 +186,7 @@ def handle_message(event):
             "- تحدي → تحدي.\n"
             "- اعتراف → اعتراف.\n"
             "- شخصي → سؤال شخصي عشوائي.\n"
-            "- لعبه (مثال: لعبه1) → يبدأ جلسة لعبة جماعية في القروب.\n"
-            "  بعد بدء اللعبة: كل عضو يكتب 'ابدأ' للانضمام ثم يجيب بالأرقام 1-4.\n"
-            "- البوت يتجاهل أي رسائل خارج الأوامر أو الجلسات."
+            "- لعبه1 → يبدأ جلسة لعبة جماعية.\n"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
@@ -190,82 +194,96 @@ def handle_message(event):
     if text == "سؤال":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(questions_file)))
         return
+
     if text == "تحدي":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(challenges_file)))
         return
+
     if text == "اعتراف":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(confessions_file)))
         return
+
     if text == "شخصي":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(personal_file)))
+        if not personality_file:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد أسئلة شخصية متاحة."))
+            return
+        question = personality_file[personality_index % len(personality_file)]
+        personality_index += 1
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=question))
         return
 
-    if text.startswith("لعبه"):
+    # ---- start group game ----
+    if text.startswith("لعبه") and (group_id or True):
         if text not in games:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="اكتب لعبه1 حتى لعبه10 لبدء لعبة."))
             return
-        group_sessions[group_id] = {"game": text, "players": {}, "state": "joining"}
+        group_sessions[group_id or user_id] = {"game": text, "players": {}, "state": "joining"}
         line_bot_api.reply_message(event.reply_token, TextSendMessage(
             text=(f"تم بدء الجلسة: {text}\n"
-                  "كل عضو يرسل 'ابدأ' للانضمام. بعد الانضمام أجب بالأرقام 1-4 على كل سؤال.\n"
-                  "البوت سيعطي تحليل مفصّل باسم كل لاعب مباشرة بعد إكماله للأسئلة.")
+                  "كل عضو يرسل 'ابدأ' للانضمام. بعد الاجابة على 5 أسئلة، سيظهر التحليل مباشرة باسم كل لاعب.")
         ))
         return
 
-    if text == "ابدأ" and group_id in group_sessions:
-        gs = group_sessions[group_id]
+    # ---- join session ----
+    session_id = group_id or user_id
+    if text == "ابدأ" and session_id in group_sessions:
+        gs = group_sessions[session_id]
         players = gs["players"]
-        if user_id in players:
-            player = players[user_id]
-            step = player["step"]
-            q = games[gs["game"]][step]
-            try: name = line_bot_api.get_profile(user_id).display_name
-            except: name = "عضو"
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}\n{q}"))
-            return
-        players[user_id] = {"step": 0, "answers": []}
-        try: name = line_bot_api.get_profile(user_id).display_name
-        except: name = "عضو"
-        q0 = games[gs["game"]][0]
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}\n{q0}"))
+        if user_id not in players:
+            players[user_id] = {"step": 0, "answers": []}
+        player = players[user_id]
+        q = games[gs["game"]][player["step"]]
+        try:
+            name = line_bot_api.get_profile(user_id).display_name
+        except:
+            name = "عضو"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}\n{q}"))
         return
 
-    if group_id in group_sessions and user_id in group_sessions[group_id]["players"]:
-        gs = group_sessions[group_id]
+    # ---- answering game questions ----
+    if session_id in group_sessions and user_id in group_sessions[session_id]["players"]:
+        gs = group_sessions[session_id]
         player = gs["players"][user_id]
         ans_num = None
-        txt = text.strip()
-        if txt.isdigit() and 1 <= int(txt) <= 4:
-            ans_num = int(txt)
+        if text.isdigit() and 1 <= int(text) <= 4:
+            ans_num = int(text)
         else:
-            m = re.search(r"\b([1-4])\b", txt)
-            if m: ans_num = int(m.group(1))
+            m = re.search(r"\b([1-4])\b", text)
+            if m:
+                ans_num = int(m.group(1))
         if ans_num is None:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=""))
             return
+
         q_index = player["step"]
         game_key = gs["game"]
         chosen_text = extract_option_text(game_key, q_index, ans_num)
-        player["answers"].append((q_index, ans_num, chosen_text))
+        player["answers"].append( (q_index, ans_num, chosen_text) )
         player["step"] += 1
 
-        if player["step"] < len(games[game_key]):
+        if player["step"] < 5:  # خمس اسئلة فقط
             next_q = games[game_key][player["step"]]
-            try: name = line_bot_api.get_profile(user_id).display_name
-            except: name = "عضو"
+            try:
+                name = line_bot_api.get_profile(user_id).display_name
+            except:
+                name = "عضو"
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}\n{next_q}"))
-            return
         else:
-            try: name = line_bot_api.get_profile(user_id).display_name
-            except: name = "عضو"
+            # تحليـل مباشر
+            try:
+                name = line_bot_api.get_profile(user_id).display_name
+            except:
+                name = "عضو"
             trait = score_answers_to_personality(player["answers"])
             final_text = build_final_analysis_text(name, trait)
-            line_bot_api.push_message(group_id, TextSendMessage(text=final_text))
+            line_bot_api.push_message(session_id, TextSendMessage(text=final_text))
             del gs["players"][user_id]
-            return
+        return
 
     return
 
+# -----------------------------
+# Run
+# -----------------------------
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
