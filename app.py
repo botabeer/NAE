@@ -2,11 +2,10 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, random, typing, re
+import os, random, typing, json
 
 app = Flask(__name__)
 
-# LINE credentials
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
@@ -21,136 +20,34 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 def load_file_lines(filename: str) -> typing.List[str]:
     try:
         with open(filename, "r", encoding="utf-8") as f:
-            lines = [line.strip() for line in f if line.strip()]
-            return lines[:100]  # نقرأ حتى 100 سطر لتجنب التكرار
+            return [line.strip() for line in f if line.strip()]
     except Exception:
         return []
 
-questions_file = load_file_lines("questions.txt") or [
-    "ما أكثر صفة تحبها في شريك حياتك؟",
-    "ما أول شعور جاءك لما شفته لأول مرة؟",
-    "لو تقدر تغير شيء في علاقتك، وش هو؟"
-]
-challenges_file = load_file_lines("challenges.txt") or [
-    "اكتب رسالة قصيرة تبدأ بـ: أحبك لأن...",
-    "ارسل له صورة تمثل أجمل ذكرى عندك معه."
-]
-confessions_file = load_file_lines("confessions.txt") or [
-    "اعترف بأول شخص جذبك في حياتك.",
-    "اعترف بأكثر عادة سيئة عندك."
-]
-personal_file = load_file_lines("personal.txt") or [
-    "تحب تبدأ يومك بالنشاط ولا بالهدوء؟",
-    "هل تعتبر نفسك اجتماعي أم انطوائي؟"
-]
+def load_games_from_txt(filename: str) -> dict:
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            return json.loads(f.read())
+    except Exception:
+        return {}
+
+questions_file = load_file_lines("questions.txt")
+challenges_file = load_file_lines("challenges.txt")
+confessions_file = load_file_lines("confessions.txt")
+personal_file = load_file_lines("personality.txt")
+games = load_games_from_txt("games.txt")
+
+# قراءة الشخصيات من ملف characters.txt
+try:
+    with open("characters.txt", "r", encoding="utf-8") as f:
+        personalities = f.read().split("\n\n")
+except Exception:
+    personalities = []
 
 # -------------------------
-# جلسات اللعبة
+# الجلسات
 # -------------------------
-group_sessions = {}  # مهم جداً
-
-# -------------------------
-# الألعاب العشر (كل لعبة 5 أسئلة)
-# -------------------------
-games = {
-    "لعبه1":[
-        "سؤال 1:\nأنت تمشي في غابة مظلمة وهادئة، فجأة تسمع صوت خطوات خلفك. ماذا تفعل؟\n1. تلتفت فورًا\n2. تسرع بخطواتك\n3. تتجاهل وتواصل طريقك\n4. تختبئ خلف شجرة",
-        "سؤال 2:\nوجدت نهرًا سريع الجريان، كيف تعبره؟\n1. أبحث عن جسر\n2. أسبح عبره\n3. أنتظر حتى يهدأ\n4. أعود للوراء",
-        "سؤال 3:\nرأيت كوخًا صغيرًا، ماذا تفعل؟\n1. أطرق الباب\n2. أدخل دون تردد\n3. أراقبه من بعيد\n4. أتركه وأكمل طريقك",
-        "سؤال 4:\nداخل الكوخ وجدت مفتاحًا وورقة، ماذا تأخذ؟\n1. المفتاح\n2. الورقة\n3. كلاهما\n4. لا شيء",
-        "سؤال 5:\nخرجت ووجدت طريقين، أي تختار؟\n1. مضيء\n2. مظلم\n3. مليء بالأزهار\n4. وعر وآمن"
-    ],
-    "لعبه2":[
-        "سؤال 1:\nاستيقظت على جزيرة غامضة، ما أول ما تفعله؟\n1. أستكشف المكان\n2. أبحث عن ماء\n3. أصرخ طلبًا للمساعدة\n4. أجلس للتفكير",
-        "سؤال 2:\nرأيت أثر أقدام على الرمل، ماذا تفعل؟\n1. أتابعها\n2. أتجاهلها\n3. أراقبها من بعيد\n4. أغطيها بالرمل",
-        "سؤال 3:\nوجدت ثمرة غريبة، هل تأكلها؟\n1. نعم فورًا\n2. لا أقترب\n3. أختبرها أولًا\n4. أحفظها",
-        "سؤال 4:\nاقترب الليل ولا مأوى، ماذا تفعل؟\n1. أبني مأوى بسيط\n2. أصعد شجرة\n3. أشعل نارًا\n4. أبقى مستيقظًا",
-        "سؤال 5:\nسمعت أصوات غريبة، كيف تتصرف؟\n1. أقترب منها\n2. أبتعد فورًا\n3. أراقب من بعيد\n4. أصيح"
-    ],
-    "لعبه3":[
-        "سؤال 1:\nأنت في مدينة جديدة، أول شيء تفعله؟\n1. أستكشف\n2. أبحث عن مطعم\n3. أبحث عن فندق\n4. أسأل الناس",
-        "سؤال 2:\nرأيت إعلانًا غريبًا، هل تتابعه؟\n1. نعم بحماس\n2. لا أهتم\n3. أصور الإعلان\n4. أتجاهله",
-        "سؤال 3:\nعرض عليك شخص عملًا غريبًا، هل تقبله؟\n1. نعم\n2. لا\n3. أسأله التفاصيل\n4. أؤجل القرار",
-        "سؤال 4:\nضاع طفل، ماذا تفعل؟\n1. أساعده فورًا\n2. أبحث عن والديه\n3. أتصل بالشرطة\n4. أتجاهله",
-        "سؤال 5:\nانقطعت الكهرباء، ماذا تفعل؟\n1. أشعل شمعة\n2. أستخدم الهاتف\n3. أتمشى\n4. أنام"
-    ],
-    "لعبه4":[
-        "سؤال 1:\nأمامك باب قصر قديم، تدخل؟\n1. أدخل\n2. أراقب من الخارج\n3. أدعو شخصًا معي\n4. أعود لاحقًا",
-        "سؤال 2:\nوجدت درجًا يؤدي للأسفل، تنزل؟\n1. نعم\n2. لا\n3. أتأكد من الضوء\n4. أبحث عن طريق آخر",
-        "سؤال 3:\nوجدت مرآة غريبة، ماذا تفعل؟\n1. أنظر فيها\n2. أكسرها\n3. ألمسها\n4. أبتعد",
-        "سؤال 4:\nرأيت غرفة مليئة بالكتب، ماذا تختار؟\n1. أفتح كتابًا\n2. آخذ واحدًا معي\n3. أتجاهلها\n4. أدعو أحدًا للمساعدة",
-        "سؤال 5:\nالقصر يهتز، ماذا تفعل؟\n1. أخرج فورًا\n2. أبحث عن مخرج\n3. أنتظر\n4. أتصل بشخص"
-    ],
-    "لعبه5":[
-        "سؤال 1:\nاستيقظت على كوكب جديد، أول ما تفعله؟\n1. أستكشف\n2. أبحث عن مأوى\n3. أجمع عينات\n4. أنتظر إشارات",
-        "سؤال 2:\nوجدت نباتًا غريبًا، ماذا تفعل؟\n1. ألمسه\n2. أصور\n3. أتجنبه\n4. آخذ منه عينة",
-        "سؤال 3:\nرأيت مخلوقًا صغيرًا، كيف تتصرف؟\n1. أقترب بحذر\n2. أبتعد\n3. أراقبه من بعيد\n4. أتواصل معه",
-        "سؤال 4:\nتواجه فصل ليل غريب، ماذا تفعل؟\n1. أبني مأوى\n2. أشعل نارًا\n3. أواصل السير\n4. أستكشف المكان",
-        "سؤال 5:\nوجدت بوابة، تدخل؟\n1. أدخل\n2. لا\n3. أنتظر\n4. أبحث عن معلومات"
-    ],
-    "لعبه6":[
-        "سؤال 1:\nأنت في متحف قديم، أول ما تفعله؟\n1. أستكشف المعروضات\n2. أبحث عن المرشد\n3. ألتقط صور\n4. أجلس للتأمل",
-        "سؤال 2:\nوجدت بابًا مخفيًا، تدخل؟\n1. نعم\n2. لا\n3. أتفقده أولًا\n4. أعود لاحقًا",
-        "سؤال 3:\nسمعت صوت غريب، كيف تتصرف؟\n1. أقترب\n2. أهرب\n3. أراقب من بعيد\n4. أصيح طلبًا للمساعدة",
-        "سؤال 4:\nرأيت لوحة غريبة، ماذا تفعل؟\n1. أقرأها جيدًا\n2. أصورها\n3. أتجاهلها\n4. أسأل عن معناها",
-        "سؤال 5:\nالمتحف يغلق، ماذا تفعل؟\n1. أخرج فورًا\n2. أبحث عن شيء مميز\n3. أختبئ\n4. أستكشف بسرعة"
-    ],
-    "لعبه7":[
-        "سؤال 1:\nأنت على شاطئ غريب، ماذا تفعل؟\n1. أستكشف الرمال\n2. أسبح في الماء\n3. أجمع أصداف\n4. أجلس للتفكير",
-        "سؤال 2:\nوجدت قارب قديم، تستخدمه؟\n1. نعم\n2. لا\n3. أفحصه أولًا\n4. أتركه",
-        "سؤال 3:\nرأيت طائر غريب، كيف تتصرف؟\n1. أقترب\n2. أبتعد\n3. أراقبه\n4. أصور فقط",
-        "سؤال 4:\nالطقس يتغير فجأة، ماذا تفعل؟\n1. أبحث عن مأوى\n2. أواصل السير\n3. أصنع أداة حماية\n4. أجلس وأراقب",
-        "سؤال 5:\nتجد رسالة على الرمال، ماذا تفعل؟\n1. أقرأها\n2. أتجاهلها\n3. أصورها\n4. أحرقها"
-    ],
-    "لعبه8":[
-        "سؤال 1:\nأنت في مكتبة ضخمة، أول ما تفعله؟\n1. أبحث عن كتب نادرة\n2. أقرأ العناوين فقط\n3. ألتقط صور\n4. أسأل الموظف",
-        "سؤال 2:\nوجدت صندوقًا مغلقًا، ماذا تفعل؟\n1. أحاول فتحه\n2. أتركه\n3. أبحث عن مفتاح\n4. أسألك عن كيفية فتحه",
-        "سؤال 3:\nرأيت نافذة تطل على المدينة، ماذا تفعل؟\n1. أنظر عبرها\n2. أغلق الستارة\n3. أصور المشهد\n4. أتجاهلها",
-        "سؤال 4:\nسمعت صوت خطوات خلفك، كيف تتصرف؟\n1. ألتفت\n2. أهرب\n3. أراقب بهدوء\n4. أصيح",
-        "سؤال 5:\nاكتشفت غرفة سرية، ماذا تفعل؟\n1. أدخل\n2. أتفقد أولًا\n3. أغلق الباب\n4. أترك المكان"
-    ],
-    "لعبه9":[
-        "سؤال 1:\nأنت في حديقة مهجورة، ماذا تفعل؟\n1. أستكشف\n2. أجمع أشياء غريبة\n3. أجلس للتأمل\n4. أصنع خطط للعب",
-        "سؤال 2:\nرأيت طائر يطير بشكل غريب، ماذا تفعل؟\n1. ألاحقه\n2. أراقبه فقط\n3. أصور\n4. أتركه",
-        "سؤال 3:\nوجدت كتاب قديم، تفتحه؟\n1. نعم\n2. لا\n3. أفحص الغلاف أولًا\n4. آخذ نسخة فقط",
-        "سؤال 4:\nالسماء تمطر فجأة، ماذا تفعل؟\n1. أبحث عن مأوى\n2. أواصل اللعب\n3. أصنع مظلة\n4. أستمتع بالمطر",
-        "سؤال 5:\nتجد مفتاحًا على الأرض، ماذا تفعل؟\n1. ألتقطه\n2. أتجاهل\n3. أحمله معي\n4. أتركه"
-    ],
-    "لعبه10":[
-        "سؤال 1:\nأنت في سفينة قديمة، ماذا تفعل؟\n1. أستكشف السفينة\n2. أبحث عن خريطة\n3. أراقب البحر\n4. أجلس وأفكر",
-        "سؤال 2:\nوجدت صندوق غامض، ماذا تفعل؟\n1. أفتحه\n2. أتركه\n3. أفحصه\n4. أسأل شخص آخر",
-        "سؤال 3:\nسمعت صوت خطوات على السطح، كيف تتصرف؟\n1. أذهب للتحقق\n2. أختبئ\n3. أراقب\n4. أصيح",
-        "سؤال 4:\nوجدت خريطة قديمة، ماذا تفعل؟\n1. أتبعها\n2. أتجاهلها\n3. أصورها\n4. أتركها",
-        "سؤال 5:\nالبحر هائج، ماذا تفعل؟\n1. أستعد للطوارئ\n2. أجلس وأراقب\n3. أبحث عن ملجأ\n4. أستمتع بالمغامرة"
-    ]
-}
-
-# -------------------------
-# الشخصيات العشر مع أوصاف طويلة ومفصلة
-# -------------------------
-DESCRIPTIONS = {
-    "قيادية": "الشخصية القيادية:\nتمتاز بالقدرة على اتخاذ القرارات بسرعة وتحمل المسؤولية..."
-                 "تسعى دائمًا لتحقيق أهدافها وتوجيه الآخرين بطريقة عملية وفعّالة..."
-                 "تحب السيطرة وتقدير الإنجازات وتبحث عن التحديات لتحقيق النجاح.",
-    "تعبيرية": "الشخصية التعبيرية:\nمعروفة بالقدرة على التواصل مع الآخرين وإظهار المشاعر بحرية..."
-                 "تستمتع بالمشاركة الاجتماعية، مرنة ومتعاطفة، وتعبر عن آرائها ومشاعرها بسهولة.",
-    "تحليلية": "الشخصية التحليلية:\nتميل للتفكير المنطقي والعقلاني، تحرص على جمع المعلومات وتحليلها قبل اتخاذ أي قرار..."
-                 "تركز على التفاصيل وتفضل الدقة في كل الأمور وتستمتع بحل المشكلات المعقدة.",
-    "داعمة": "الشخصية الداعمة:\nتقدم المساعدة للآخرين باستمرار، تحب الاستقرار والهدوء..."
-                 "تتميز بالاهتمام بالآخرين والتواصل معهم، تحب أن تكون سندًا وداعمًا لمن يحتاج.",
-    "اجتماعية": "الشخصية الاجتماعية:\nتحب التواصل مع الناس وتكوين صداقات جديدة..."
-                 "متفائلة وودودة، تعبر عن مشاعرها وتشارك الآخرين فرحها وحزنها.",
-    "مغامرة": "الشخصية المغامرة:\nتحب الاستكشاف وتجربة أشياء جديدة ومخاطرة محسوبة..."
-                 "تتمتع بالشجاعة وحب التحدي، وتبحث عن الإثارة والتجارب غير المألوفة.",
-    "مبتكرة": "الشخصية المبتكرة:\nتمتاز بالأفكار الجديدة والقدرة على التفكير خارج الصندوق..."
-                 "تحب الإبداع في الحلول ومواجهة المشكلات بطريقة غير تقليدية، تبحث عن التطوير المستمر.",
-    "محللة": "الشخصية المحللة:\nتركز على التفاصيل الصغيرة وتحب دراسة الأمور بعمق..."
-                 "تعتمد على المنطق في اتخاذ القرارات، وتستمتع بحل المشكلات المعقدة بطريقة منظمة.",
-    "مستقلة": "الشخصية المستقلة:\nتحب الاعتماد على نفسها في جميع الأمور..."
-                 "ساعية لتحقيق أهدافها دون تدخل من الآخرين، قوية الإرادة وتحمل المسؤولية بثقة.",
-    "حساسة": "الشخصية الحساسة:\nتتأثر بالأحداث والمواقف بسرعة..."
-                 "تولي اهتمامًا كبيرًا لمشاعر الآخرين، تتصرف بتعاطف وهدوء، وتفكر جيدًا قبل اتخاذ أي خطوة."
-}
+group_sessions = {}
 
 # -------------------------
 # Webhook
@@ -166,16 +63,7 @@ def callback():
     return "OK"
 
 # -------------------------
-# Helper: استخراج نص الخيار
-# -------------------------
-def extract_option_text(question: str, chosen: int) -> str:
-    opts = re.findall(r"\n\s*\d+\s*[\.\)\-:]\s*([^\n]+)", question)
-    if opts and 1 <= chosen <= len(opts):
-        return opts[chosen-1].strip()
-    return ""
-
-# -------------------------
-# التعامل مع الرسائل
+# المنطق الأساسي
 # -------------------------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -184,80 +72,76 @@ def handle_message(event):
     user_id = event.source.user_id
     group_id = getattr(event.source, "group_id", None)
 
-    # أوامر البوت
     if text == "مساعدة":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(
-            text="أوامر البوت:\n- سؤال\n- تحدي\n- اعتراف\n- شخصي\n- لعبه1 حتى لعبه10"
+            text="الأوامر:
+سؤال
+تحدي
+اعتراف
+شخصي
+لعبه1 إلى لعبه10"
         ))
         return
+
     if text == "سؤال":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(questions_file)))
+        q = random.choice(questions_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=q))
         return
+
     if text == "تحدي":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(challenges_file)))
+        c = random.choice(challenges_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=c))
         return
+
     if text == "اعتراف":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(confessions_file)))
+        cf = random.choice(confessions_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=cf))
         return
+
     if text == "شخصي":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(personal_file)))
+        p = random.choice(personal_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=p))
         return
 
     # بدء اللعبة
     if group_id and text.startswith("لعبه"):
         if text not in games:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="اكتب لعبه1 حتى لعبه10 لبدء اللعبة."))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="اكتب لعبه1 حتى لعبه10 لبدء لعبة."))
             return
         group_sessions[group_id] = {"game": text, "players": {}, "state": "joining"}
         line_bot_api.reply_message(event.reply_token, TextSendMessage(
-            text=f"تم بدء الجلسة: {text}\nكل عضو يرسل 'ابدأ' للانضمام."
+            text=f"بدأت {text}! كل عضو يرسل 'ابدأ' للانضمام."
         ))
         return
 
-    # الانضمام للعبة
+    # انضمام لاعب جديد
     if group_id in group_sessions and text == "ابدأ":
         session = group_sessions[group_id]
-        session["players"][user_id] = {"answers": [], "current": 0, "name": f"لاعب {len(session['players'])+1}"}
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="تم تسجيلك! الآن أجب على الأسئلة برقم الخيار 1-4."))
-        # إرسال السؤال الأول
+        player_name = f"لاعب {len(session['players'])+1}"
+        session["players"][user_id] = {"answers": [], "index": 0, "name": player_name}
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(
+            text=f"{player_name} تم تسجيلك! أجب بالأرقام 1-4."
+        ))
         first_q = games[session["game"]][0]
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{session['players'][user_id]['name']}\n{first_q}"))
+        line_bot_api.push_message(user_id, TextSendMessage(text=f"{player_name}\n{first_q}"))
         return
 
-    # تسجيل الإجابة وتحليل الشخصية
+    # تسجيل الإجابة
     if group_id in group_sessions:
         session = group_sessions[group_id]
-        if user_id in session["players"] and text in ["1","2","3","4"]:
+        if user_id in session["players"] and text in ["1", "2", "3", "4"]:
             player = session["players"][user_id]
-            q_index = player["current"]
-            answer = int(text)
-            player["answers"].append(answer)
-            player["current"] += 1
+            player["answers"].append(int(text))
+            player["index"] += 1
 
-            # نقاط لكل شخصية
-            if "scores" not in player:
-                player["scores"] = {k:0 for k in DESCRIPTIONS.keys()}
-
-            # مثال ربط الإجابات بالشخصيات (يمكن تعديل حسب المنطق)
-            mapping = [
-                ["قيادية","تعبيرية","تحليلية","داعمة"],
-                ["اجتماعية","مغامرة","مبتكرة","محللة"],
-                ["مستقلة","حساسة","قيادية","تعبيرية"],
-                ["مغامرة","مبتكرة","محللة","داعمة"],
-                ["اجتماعية","قيادية","مستقلة","حساسة"]
-            ]
-            if q_index < len(mapping):
-                char = mapping[q_index][answer-1]
-                player["scores"][char] += 1
-
-            # السؤال التالي أو التحليل النهائي
-            if player["current"] < len(games[session["game"]]):
-                next_q = games[session["game"]][player["current"]]
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{player['name']}\n{next_q}"))
+            if player["index"] < len(games[session["game"]]):
+                next_q = games[session["game"]][player["index"]]
+                line_bot_api.push_message(user_id, TextSendMessage(text=f"{player['name']}\n{next_q}"))
             else:
-                top_char = max(player["scores"], key=player["scores"].get)
-                line_bot_api.reply_message(event.reply_token, TextSendMessage(
-                    text=f"{player['name']}\n{top_char}\n{DESCRIPTIONS[top_char]}"
+                # تحليل نهائي بسيط
+                result = random.choice(personalities) if personalities else "تحليل غير متوفر"
+                line_bot_api.push_message(user_id, TextSendMessage(
+                    text=f"{player['name']}\nنتيجتك الشخصية:\n{result}"
                 ))
         return
 
