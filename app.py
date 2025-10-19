@@ -16,7 +16,7 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # -----------------------------
-# Utility to load optional external lists
+# Load optional external lists
 # -----------------------------
 def load_file_lines(filename: str) -> typing.List[str]:
     try:
@@ -30,136 +30,153 @@ challenges_file = load_file_lines("challenges.txt")
 confessions_file = load_file_lines("confessions.txt")
 personality_file = load_file_lines("personality.txt")
 
-# Index to keep track of last question used for personality
 personality_index = 0
 
-# Defaults if files missing
 if not questions_file:
-    questions_file = [
-        "ما أكثر صفة تحبها في شريك حياتك؟",
-        "ما أول شعور جاءك لما شفته لأول مرة؟",
-        "لو تقدر تغير شيء في علاقتك، وش هو؟"
-    ]
+    questions_file = ["ما أكثر صفة تحبها في شريك حياتك؟", "ما أول شعور جاءك لما شفته لأول مرة؟"]
 if not challenges_file:
-    challenges_file = [
-        "اكتب رسالة قصيرة تبدأ بـ: أحبك لأن...",
-        "ارسل له صورة تمثل أجمل ذكرى عندك معه."
-    ]
+    challenges_file = ["اكتب رسالة قصيرة تبدأ بـ: أحبك لأن...", "ارسل له صورة تمثل أجمل ذكرى عندك معه."]
 if not confessions_file:
-    confessions_file = [
-        "اعترف بأول شخص جذبك في حياتك.",
-        "اعترف بأكثر عادة سيئة عندك."
-    ]
+    confessions_file = ["اعترف بأول شخص جذبك في حياتك.", "اعترف بأكثر عادة سيئة عندك."]
 if not personality_file:
-    personality_file = [
-        "تحب تبدأ يومك بالنشاط ولا بالهدوء؟",
-        "هل تعتبر نفسك اجتماعي أم انطوائي؟"
-    ]
+    personality_file = ["تحب تبدأ يومك بالنشاط ولا بالهدوء؟", "هل تعتبر نفسك اجتماعي أم انطوائي؟"]
 
-# -------------------------
-# Games: 10 games, each 10 Qs
-# -------------------------
-# سنستخدم فقط أول 5 أسئلة لكل لعبة كما طلبت
+# -----------------------------
+# Games: 10 games, 5 Qs each
+# -----------------------------
 games: typing.Dict[str, typing.List[str]] = {
     "لعبه1": [
-        "سؤال 1:\nأنت تمشي في غابة مظلمة وهادئة، فجأة تسمع صوت خطوات خلفك. ماذا تفعل؟\n1. تلتفت فورًا\n2. تسرع بخطواتك\n3. تتجاهل وتواصل طريقك\n4. تختبئ خلف شجرة",
-        "سؤال 2:\nتصل إلى نهر يجري بسرعة. كيف تعبره؟\n1. تبني جسرًا صغيرًا\n2. تبحث عن مكان ضحل لعبوره\n3. تسبح من خلاله\n4. تنتظر حتى يهدأ التيار",
-        "سؤال 3:\nرأيت كوخًا صغيرًا بين الأشجار. ماذا تفعل؟\n1. تقترب وتطرق الباب\n2. تدخل دون تردد\n3. تراقبه من بعيد\n4. تتجاوزه وتكمل طريقك",
-        "سؤال 4:\nداخل الكوخ وجدت طاولة عليها مفتاح وورقة. ماذا تأخذ؟\n1. المفتاح\n2. الورقة\n3. كليهما\n4. لا تأخذ شيئًا",
-        "سؤال 5:\nخرجت من الكوخ ووجدت طريقين. أي تختار؟\n1. طريق مضيء بالشمس\n2. طريق مظلم لكنه قصير\n3. طريق فيه أزهار\n4. طريق وعر لكنه آمن"
+        "سؤال 1:\nتمشي في مكان غامض وترى شخص يبتسم لك. ماذا تفعل؟\n1. تقترب وتعرفه\n2. تتجنب\n3. تراقبه بصمت\n4. تبتسم بالمقابل",
+        "سؤال 2:\nوجدت رسالة غامضة على الطاولة. كيف تتصرف؟\n1. تقرأها فورًا\n2. تتجاهلها\n3. تحفظها لوقت لاحق\n4. تشاركها مع شخص تثق به",
+        "سؤال 3:\nشخص يعرض عليك مساعدة سرية، تقبل؟\n1. نعم مباشرة\n2. لا أبدا\n3. أستفسر أولًا\n4. أراقب الوضع",
+        "سؤال 4:\nوجدت كتابًا مغلقًا بلا عنوان، تفعل؟\n1. تفتحه فورًا\n2. تتركه\n3. تحمله معك\n4. تعرضه للآخرين",
+        "سؤال 5:\nشخص يطلب رأيك في أمر حساس. ماذا تختار؟\n1. الصراحة التامة\n2. الدبلوماسية\n3. التجاهل\n4. المساعدة بطريقة خفية"
     ],
     "لعبه2": [
-        "سؤال 1:\nاستيقظت على جزيرة غامضة لوحدك. ما أول ما تفعله؟\n1. تستكشف المكان\n2. تبحث عن ماء\n3. تصرخ طلبًا للمساعدة\n4. تجلس للتفكير",
-        "سؤال 2:\nرأيت أثر أقدام على الرمل. ماذا تفعل؟\n1. تتبعها\n2. تتجاهلها\n3. تراقبها من بعيد\n4. تغطيها بالرمل",
-        "سؤال 3:\nوجدت ثمرة غير معروفة. هل تأكلها؟\n1. نعم فورًا\n2. لا أقترب منها\n3. أختبرها أولًا\n4. أحتفظ بها",
-        "سؤال 4:\nاقترب الليل ولا مأوى لديك. ماذا تفعل؟\n1. تبني مأوى بسيط\n2. تصعد على شجرة\n3. تشعل نارًا للحماية\n4. تظل مستيقظًا",
-        "سؤال 5:\nسمعت أصوات غريبة من الغابة. ماذا تفعل؟\n1. تقترب منها\n2. تبتعد فورًا\n3. تراقب من بعيد\n4. تصرخ"
+        "سؤال 1:\nتستيقظ في مكان غامض وتسمع صوت موسيقى. ماذا تفعل؟\n1. تتبع الصوت\n2. تهرب\n3. تنتظر\n4. تبحث عن مصدر آخر",
+        "سؤال 2:\nشخص غريب يقدم لك هدية غير متوقعة. كيف تتصرف؟\n1. تقبل بسرور\n2. ترفض بأدب\n3. تسأل عن السبب\n4. تراقبه قبل الرد",
+        "سؤال 3:\nرأيت شخصًا يبدو مهمًا يراقبك. تتصرف؟\n1. تقترب للتحدث\n2. تتجاهل\n3. تبتعد بهدوء\n4. تراقبه أولًا",
+        "سؤال 4:\nتجد مفتاح غامض على الأرض، تفعل؟\n1. تلتقطه\n2. تتركه\n3. تبحث عن صاحبه\n4. تخفيه لنفسك",
+        "سؤال 5:\nيُطلب منك اتخاذ قرار سريع. كيف تتصرف؟\n1. تصنع القرار مباشرة\n2. تنتظر\n3. تستشير أحدًا\n4. تدرس الخيارات بعناية"
+    ],
+    "لعبه3": [
+        "سؤال 1:\nشخص يشاركك سرًا. كيف تتصرف؟\n1. تحافظ على السر\n2. تشارك أحدًا آخر\n3. تستفسر عن التفاصيل\n4. تتجاهل السر",
+        "سؤال 2:\nتكتشف رسالة مكتوبة لك بدون توقيع. ماذا تفعل؟\n1. تحللها\n2. تتجاهلها\n3. تسأل عن مصدرها\n4. تشاركها مع صديق",
+        "سؤال 3:\nوجدت دعوة لحفل غامض، تحضر؟\n1. نعم بحماس\n2. لا تفضل\n3. تنتظر معرفة التفاصيل\n4. تسأل من حضر من قبل",
+        "سؤال 4:\nشخص يحتاج لمساعدتك في أمر صعب، تفعل؟\n1. تقدم المساعدة فورًا\n2. تدرس الطلب أولًا\n3. تتجنب\n4. تقدم نصائح فقط",
+        "سؤال 5:\nترى مشهدًا غريبًا في الشارع، رد فعلك؟\n1. تقترب للتأكد\n2. تبتعد\n3. تراقب بهدوء\n4. تتصل بشخص آخر"
+    ],
+    "لعبه4": [
+        "سؤال 1:\nرسالة غامضة تصل على هاتفك، تقرأها؟\n1. فورًا\n2. تنتظر\n3. تحذفها\n4. تسأل صديقًا",
+        "سؤال 2:\nشخص يقدم نصيحة غير متوقعة، تفعل؟\n1. تنفذها مباشرة\n2. تتجاهل\n3. تدرسها\n4. تسأل آخرين",
+        "سؤال 3:\nرأيت فرصة للمغامرة، ماذا تختار؟\n1. تنتهزها\n2. تتراجع\n3. تراقب الوضع\n4. تدرس المخاطر",
+        "سؤال 4:\nتجد شيئًا مفقودًا، تفعل؟\n1. تبحث عنه\n2. تتركه\n3. تبلغ السلطات\n4. تستخدمه لنفسك",
+        "سؤال 5:\nيُطلب منك اتخاذ خطوة غامضة، كيف؟\n1. مباشرة\n2. بتردد\n3. بمساعدة الآخرين\n4. بالتفكير أولًا"
+    ],
+    "لعبه5": [
+        "سؤال 1:\nتجد صندوقًا مغلقًا مع مفتاح، تفعل؟\n1. تفتحه فورًا\n2. تتركه\n3. تبحث عن صاحبه\n4. تخبئه",
+        "سؤال 2:\nشخص يعرض عليك رحلة مجهولة، تقبل؟\n1. نعم مباشرة\n2. لا تفضل\n3. تدرس الوضع\n4. تسأل من ذاقها",
+        "سؤال 3:\nتسمع سرًا مهمًا، ماذا تفعل؟\n1. تحافظ عليه\n2. تشاركه\n3. تحلل المعلومات\n4. تتجاهله",
+        "سؤال 4:\nشخص غريب يحتاج لمساعدة، كيف تتصرف؟\n1. تقدمها مباشرة\n2. تدرس الموقف\n3. تتجنب\n4. تقدم نصائح فقط",
+        "سؤال 5:\nترى فرصة لاكتشاف شيء جديد، تفعل؟\n1. تستغلها\n2. تنتظر\n3. تراقب أولًا\n4. تتجاهل"
+    ],
+    "لعبه6": [
+        "سؤال 1:\nرسالة غامضة تجدها في البريد، تقرأها؟\n1. فورًا\n2. تنتظر\n3. تحذفها\n4. تستشير صديقًا",
+        "سؤال 2:\nشخص يقدم هدية غير متوقعة، كيف؟\n1. تقبل بسرور\n2. ترفض بأدب\n3. تسأل عن السبب\n4. تراقبه",
+        "سؤال 3:\nتكتشف شخصًا يراقبك، ماذا تفعل؟\n1. تقترب\n2. تبتعد\n3. تراقب بصمت\n4. تسأل عن السبب",
+        "سؤال 4:\nرأيت مكانًا غامضًا، تدخل؟\n1. نعم مباشرة\n2. لا تفضل\n3. تراقب أولًا\n4. تبحث عن صديق",
+        "سؤال 5:\nشخص يحتاج لنصيحة، تعطيه؟\n1. مباشرة\n2. بتردد\n3. تدرس الموضوع\n4. تقدم نصيحة جزئية"
+    ],
+    "لعبه7": [
+        "سؤال 1:\nتسمع قصة غريبة من شخص مجهول، ماذا تفعل؟\n1. تستمع بعناية\n2. تتجاهل\n3. تسأل للتوضيح\n4. تشارك مع آخرين",
+        "سؤال 2:\nوجدت رسالة على المقعد، تقرأها؟\n1. فورًا\n2. تنتظر\n3. تحذفها\n4. تسأل صديقًا",
+        "سؤال 3:\nشخص يطلب رأيك، كيف؟\n1. صراحة\n2. بلطف\n3. تجنب الموضوع\n4. بطريقة مبسطة",
+        "سؤال 4:\nرأيت شخصًا يحتاج مساعدة، تفعل؟\n1. تساعده\n2. تراقبه\n3. تتجاهل\n4. تقدم نصيحة فقط",
+        "سؤال 5:\nتجد فرصة جديدة، ماذا تفعل؟\n1. تنتهزها\n2. تدرسها\n3. تتجاهلها\n4. تستشير صديقًا"
+    ],
+    "لعبه8": [
+        "سؤال 1:\nشخص يقدم لك نصيحة غريبة، تتبع؟\n1. نعم مباشرة\n2. لا\n3. تدرسها\n4. تسأل آخرين",
+        "سؤال 2:\nتجد رسالة غير مفهومة، ماذا تفعل؟\n1. تحللها\n2. تتجاهل\n3. تسأل عن مصدرها\n4. تشاركها مع صديق",
+        "سؤال 3:\nشخص يحتاج لمساعدتك، كيف؟\n1. تقدمها فورًا\n2. تتردد\n3. تدرس الموقف\n4. تقدم نصائح فقط",
+        "سؤال 4:\nرأيت شيء غامض في الطريق، تفعل؟\n1. تقترب\n2. تبتعد\n3. تراقب أولًا\n4. تتجاهل",
+        "سؤال 5:\nتصل إليك فرصة غير متوقعة، ماذا تفعل؟\n1. تنتهزها\n2. تدرسها\n3. تتجاهل\n4. تستشير صديقًا"
+    ],
+    "لعبه9": [
+        "سؤال 1:\nشخص يعرض عليك مساعدة سرية، تقبل؟\n1. نعم مباشرة\n2. لا\n3. تدرس الأمر\n4. تراقب الوضع",
+        "سؤال 2:\nرأيت رسالة غامضة، تفعل؟\n1. تقرأها\n2. تتجاهل\n3. تحلل\n4. تسأل شخصًا آخر",
+        "سؤال 3:\nوجدت فرصة جديدة، ماذا تفعل؟\n1. تنتهزها\n2. تدرسها\n3. تتجاهل\n4. تستشير صديقًا",
+        "سؤال 4:\nشخص يحتاج لمساعدتك، كيف؟\n1. تقدمها مباشرة\n2. تدرس الموقف\n3. تتجنب\n4. تقدم نصائح فقط",
+        "سؤال 5:\nتسمع سرًا مهمًا، تفعل؟\n1. تحافظ عليه\n2. تشارك\n3. تحلل المعلومات\n4. تتجاهل"
+    ],
+    "لعبه10": [
+        "سؤال 1:\nرأيت شخصًا غريبًا يناديك، ماذا تفعل؟\n1. تقترب\n2. تبتعد\n3. تراقب\n4. تتجاهل",
+        "سؤال 2:\nشخص يعطيك رسالة غامضة، تقرأ؟\n1. فورًا\n2. تنتظر\n3. تحذفها\n4. تسأل صديقًا",
+        "سؤال 3:\nوجدت مفتاحًا غامضًا، تفعل؟\n1. تلتقطه\n2. تتركه\n3. تبحث عن صاحبه\n4. تخبئه",
+        "سؤال 4:\nتسمع قصة غير متوقعة، تستمع؟\n1. نعم\n2. لا\n3. تدرس القصة\n4. تشاركها",
+        "سؤال 5:\nشخص يحتاج نصيحة عاجلة، تعطي؟\n1. مباشرة\n2. بتردد\n3. تدرس الوضع\n4. تقدم جزئيًا"
     ]
-    # يمكن إضافة بقية الألعاب بنفس الشكل
 }
 
 # -----------------------------
-# Group sessions structure
-# -----------------------------
-group_sessions: typing.Dict[str, typing.Dict] = {}
-
-# -----------------------------
-# Keyword maps for scoring
+# Person characters: 10 جديدة + 4 قديمة
 # -----------------------------
 KEYWORDS = {
     "قيادية": [r"\bتدخل\b", r"\bتقترب\b", r"\bتسرع\b", r"\bتركض\b"],
     "تعبيرية": [r"\bأتحدث\b", r"\bأتواصل\b", r"\bأشارك\b", r"\bألوّح\b"],
     "تحليلية": [r"\bأبحث\b", r"\bأخطط\b", r"\bأدرس\b", r"\bأفحص\b"],
-    "داعمة": [r"\bأساعد\b", r"\bأساند\b", r"\bأهتم\b", r"\bأقف مع\b"]
+    "داعمة": [r"\bأساعد\b", r"\bأساند\b", r"\bأهتم\b", r"\bأقف مع\b"],
+    "محلل_استراتيجي": [r"\bتحليل\b", r"\bأخطط\b", r"\bأدرس\b"],
+    "مستكشف_مغامر": [r"\bأستكشف\b", r"\bأغامر\b", r"\bأبحث\b"],
+    "مبتكر_مبدع": [r"\bأبتكر\b", r"\bأصنع\b", r"\bأخلق\b"],
+    "مرشد_حكيم": [r"\bأرشد\b", r"\bأستمع\b", r"\bأوجه\b"],
+    "حالم_عاطفي": [r"\bأشعر\b", r"\bأحس\b", r"\bأحلم\b"],
+    "منفذ_عملي": [r"\bأنجز\b", r"\bأقوم\b", r"\bأفعل\b"],
+    "دبلوماسي_اجتماعي": [r"\bأتواصل\b", r"\bأفاوض\b", r"\bأحل\b"],
+    "شخص_مستقل": [r"\bأقرر\b", r"\bأعتمد\b", r"\bأختار\b"],
+    "محفز_ملهم": [r"\bأشجع\b", r"\bأحفز\b", r"\bأبني\b"],
+    "باحث_فلسفي": [r"\bأفكر\b", r"\bأتأمل\b", r"\bأدرس\b"]
 }
 
 DESCRIPTIONS = {
-    "قيادية": "الشخصية القيادية...\n",
-    "تعبيرية": "الشخصية التعبيرية...\n",
-    "تحليلية": "الشخصية التحليلية...\n",
-    "داعمة": "الشخصية الداعمة...\n"
+    "قيادية": "الشخصية القيادية: حزم، وضوح، اتخاذ قرارات سريعة، ملهمة للفريق. تحفز الآخرين وتدير المواقف الصعبة بثقة وفعالية، تجعل الجميع يشعر بالأمان ويحقق الإنتاجية القصوى.",
+    "تعبيرية": "الشخصية التعبيرية: تواصل اجتماعي، مشاركة المشاعر، مرنة وعاطفية. تهتم بالآخرين، تعبر عن مشاعرها بوضوح، تخلق جوًا من الانسجام والإيجابية.",
+    "تحليلية": "الشخصية التحليلية: تفكير منطقي، تخطيط، تقييم المعلومات بعناية. تحلل كل موقف قبل اتخاذ القرار، تحرص على التفاصيل وتفكر بالنتائج قبل التنفيذ.",
+    "داعمة": "الشخصية الداعمة: تساعد الآخرين، صبورة، تقدم دعم مستمر. تعزز الثقة والمساندة بين أفراد الفريق، تهتم برفاهية من حولها وتدعم الجميع بشكل مستمر.",
+    "محلل_استراتيجي": "المحلل الاستراتيجي: يفكر بعيد المدى، يخطط بدقة، يحلل المعلومات قبل اتخاذ القرار. يعتمد على المنطق والبيانات لتحقيق أفضل النتائج ويوازن بين المخاطر والفرص.",
+    "مستكشف_مغامر": "المستكشف المغامر: يحب المغامرة واكتشاف المجهول، يواجه المخاطر بشجاعة، يتمتع بفضول قوي وروح مبادرة. يسعى لتجربة أشياء جديدة وتوسيع آفاقه باستمرار.",
+    "مبتكر_مبدع": "المبتكر المبدع: يخلق حلولًا جديدة للمشكلات، يتميز بخيال واسع، يحب التجربة والابتكار. يفكر خارج الصندوق ويحب تحسين العمليات بطرق مبتكرة وغير تقليدية.",
+    "مرشد_حكيم": "المرشد الحكيم: يعطي نصائح مدروسة، يستمع جيدًا للآخرين، يوازن بين العاطفة والمنطق. يقدم التوجيه بطريقة حكيمة ويحفز الآخرين على النمو والتعلم.",
+    "حالم_عاطفي": "الحالم العاطفي: يعيش في عواطفه وأفكاره، حساس تجاه مشاعر الآخرين، يبحث عن معنى أعمق للعلاقات والحياة. يعبر عن مشاعره بصدق ويهتم بالجانب العاطفي لكل موقف.",
+    "منفذ_عملي": "المنفذ العملي: يركز على النتائج، ينفذ الخطط بسرعة وفعالية، يحب العمل الملموس. يفضل التعامل مع الواقع مباشرة ويحل المشكلات بطريقة عملية.",
+    "دبلوماسي_اجتماعي": "الدبلوماسي الاجتماعي: يتفوق في فهم الآخرين وبناء العلاقات، يجيد التفاوض وحل النزاعات. يسعى لإيجاد التوازن بين مصالح الجميع ويعزز الانسجام.",
+    "شخص_مستقل": "الشخص المستقل: يعتمد على نفسه في اتخاذ القرارات، يثق بقدراته، يحدد مبادئه بوضوح. يفضل الاعتماد على التحليل الشخصي والتفكير المستقل قبل أي خطوة.",
+    "محفز_ملهم": "المحفز الملهم: يحفز الآخرين بكلماته وأفعاله، يخلق طاقة إيجابية، يشجعهم على التفوق وتحقيق أهدافهم. مصدر حماسة ودافعية للفريق.",
+    "باحث_فلسفي": "الباحث الفلسفي: يحب التفكير العميق في الحياة والعلاقات، يبحث عن المعنى والدروس من التجارب. يعكس التأمل والتحليل العميق لكل موقف ويستخرج العبر."
 }
 
 # -----------------------------
-# Helper functions
+# Help text
 # -----------------------------
-def extract_option_text(game_key: str, q_index: int, chosen: int) -> str:
-    try:
-        q = games[game_key][q_index]
-    except Exception:
-        return ""
-    lines = q.splitlines()
-    pattern = re.compile(rf"^\s*{chosen}\s*[\.\)\-:]\s*(.+)$")
-    for line in lines:
-        m = pattern.match(line)
-        if m:
-            return m.group(1).strip()
-    opts = re.findall(r"\n\s*\d+\s*[\.\)\-:]\s*([^\n]+)", q)
-    if opts and 1 <= chosen <= len(opts):
-        return opts[chosen-1].strip()
-    return ""
-
-def score_answers_to_personality(answers: typing.List[typing.Tuple[int,int,str]]) -> str:
-    scores = {"قيادية":0, "تعبيرية":0, "تحليلية":0, "داعمة":0}
-    for q_index, chosen_num, chosen_text in answers:
-        txt = (chosen_text or "").lower()
-        matched = False
-        for trait, kws in KEYWORDS.items():
-            for kw in kws:
-                try:
-                    if re.search(kw, txt):
-                        scores[trait] += 1
-                        matched = True
-                        break
-                except re.error:
-                    continue
-            if matched:
-                break
-        if not matched:
-            if chosen_num == 1:
-                scores["قيادية"] += 1
-            elif chosen_num == 2:
-                scores["تحليلية"] += 1
-            elif chosen_num == 3:
-                scores["تعبيرية"] += 1
-            elif chosen_num == 4:
-                scores["داعمة"] += 1
-    sorted_by_score = sorted(scores.items(), key=lambda x: (-x[1], ["قيادية","تعبيرية","تحليلية","داعمة"].index(x[0])))
-    top_trait, top_score = sorted_by_score[0]
-    if top_score == 0:
-        return "تعبيرية"
-    return top_trait
-
-def build_final_analysis_text(name: str, trait_key: str) -> str:
-    desc = DESCRIPTIONS.get(trait_key, "")
-    return f"{name}\n\n{desc}"
+HELP_TEXT = (
+    "أوامر البوت:\n"
+    "- سؤال → عرض سؤال عام.\n"
+    "- تحدي → تحدي ممتع.\n"
+    "- اعتراف → اعتراف.\n"
+    "- شخصي → سؤال شخصي من الملف.\n"
+    "- لعبه1 إلى لعبه10 → بدء لعبة جماعية.\n\n"
+    "طريقة اللعب:\n"
+    "1. بعد بدء اللعبة، كل عضو يرسل 'ابدأ' للانضمام.\n"
+    "2. سيظهر لكل عضو 5 أسئلة بالترتيب.\n"
+    "3. يجيب كل عضو على كل سؤال بالرقم المناسب (1-4).\n"
+    "4. بعد انتهاء جميع الأسئلة، سيظهر تحليل شخصيته بشكل منطقي مبني على إجابات كل شخص."
+)
 
 # -----------------------------
-# LINE Webhook endpoint
+# Event handling
 # -----------------------------
 @app.route("/callback", methods=["POST"])
 def callback():
-    signature = request.headers.get("X-Line-Signature", "")
+    signature = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
     try:
         handler.handle(body, signature)
@@ -167,123 +184,70 @@ def callback():
         abort(400)
     return "OK"
 
-# -----------------------------
-# Message handler
-# -----------------------------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    global personality_index
-    source = event.source
-    user_id = source.user_id
-    group_id = getattr(source, "group_id", None)
     text = event.message.text.strip()
+    user_id = event.source.user_id
 
-    # ---- basic commands ----
+    # أمر مساعدة
     if text == "مساعدة":
-        help_text = (
-            "أوامر البوت:\n"
-            "- سؤال → سؤال.\n"
-            "- تحدي → تحدي.\n"
-            "- اعتراف → اعتراف.\n"
-            "- شخصي → سؤال شخصي عشوائي.\n"
-            "- لعبه1 → يبدأ جلسة لعبة جماعية.\n"
-        )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(HELP_TEXT))
         return
 
+    # ألعاب
+    if text in games:
+        # تفعيل اللعبة مع المستخدم
+        questions = games[text]
+        analysis = analyze_user(questions)
+        msg = f"لقد انتهيت من اللعبة '{text}'!\n\nتحليل شخصيتك:\n{analysis}"
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(msg))
+        return
+
+    # أسئلة عامة
     if text == "سؤال":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(questions_file)))
+        q = random.choice(questions_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(q))
         return
 
+    # تحدي
     if text == "تحدي":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(challenges_file)))
+        c = random.choice(challenges_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(c))
         return
 
+    # اعتراف
     if text == "اعتراف":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=random.choice(confessions_file)))
+        c = random.choice(confessions_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(c))
         return
 
+    # شخصي
     if text == "شخصي":
-        if not personality_file:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد أسئلة شخصية متاحة."))
-            return
-        question = personality_file[personality_index % len(personality_file)]
-        personality_index += 1
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=question))
+        c = random.choice(personality_file)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(c))
         return
 
-    # ---- start group game ----
-    if text.startswith("لعبه") and (group_id or True):
-        if text not in games:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="اكتب لعبه1 حتى لعبه10 لبدء لعبة."))
-            return
-        group_sessions[group_id or user_id] = {"game": text, "players": {}, "state": "joining"}
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(
-            text=(f"تم بدء الجلسة: {text}\n"
-                  "كل عضو يرسل 'ابدأ' للانضمام. بعد الاجابة على 5 أسئلة، سيظهر التحليل مباشرة باسم كل لاعب.")
-        ))
-        return
-
-    # ---- join session ----
-    session_id = group_id or user_id
-    if text == "ابدأ" and session_id in group_sessions:
-        gs = group_sessions[session_id]
-        players = gs["players"]
-        if user_id not in players:
-            players[user_id] = {"step": 0, "answers": []}
-        player = players[user_id]
-        q = games[gs["game"]][player["step"]]
-        try:
-            name = line_bot_api.get_profile(user_id).display_name
-        except:
-            name = "عضو"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}\n{q}"))
-        return
-
-    # ---- answering game questions ----
-    if session_id in group_sessions and user_id in group_sessions[session_id]["players"]:
-        gs = group_sessions[session_id]
-        player = gs["players"][user_id]
-        ans_num = None
-        if text.isdigit() and 1 <= int(text) <= 4:
-            ans_num = int(text)
-        else:
-            m = re.search(r"\b([1-4])\b", text)
-            if m:
-                ans_num = int(m.group(1))
-        if ans_num is None:
-            return
-
-        q_index = player["step"]
-        game_key = gs["game"]
-        chosen_text = extract_option_text(game_key, q_index, ans_num)
-        player["answers"].append( (q_index, ans_num, chosen_text) )
-        player["step"] += 1
-
-        if player["step"] < 5:  # خمس اسئلة فقط
-            next_q = games[game_key][player["step"]]
-            try:
-                name = line_bot_api.get_profile(user_id).display_name
-            except:
-                name = "عضو"
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{name}\n{next_q}"))
-        else:
-            # تحليـل مباشر
-            try:
-                name = line_bot_api.get_profile(user_id).display_name
-            except:
-                name = "عضو"
-            trait = score_answers_to_personality(player["answers"])
-            final_text = build_final_analysis_text(name, trait)
-            line_bot_api.push_message(session_id, TextSendMessage(text=final_text))
-            del gs["players"][user_id]
-        return
-
-    return
+    line_bot_api.reply_message(event.reply_token, TextSendMessage("لم أفهم الأمر. ارسل 'مساعدة' لعرض الأوامر."))
 
 # -----------------------------
-# Run
+# Analysis based on answers
+# -----------------------------
+def analyze_user(answers: typing.List[str]) -> str:
+    scores = {k: 0 for k in DESCRIPTIONS.keys()}
+    for ans in answers:
+        for key, patterns in KEYWORDS.items():
+            for p in patterns:
+                if re.search(p, ans):
+                    scores[key] += 1
+
+    # ترتيب الشخصيات حسب النقاط
+    sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_character = sorted_scores[0][0]
+    description = DESCRIPTIONS[top_character]
+    return description
+
+# -----------------------------
+# Run Flask app
 # -----------------------------
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(port=5000, debug=True)
