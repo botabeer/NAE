@@ -21,24 +21,29 @@ def load_file_lines(filename: str) -> typing.List[str]:
     except Exception:
         return []
 
+# تحميل الملفات
 questions_file = load_file_lines("questions.txt")
 challenges_file = load_file_lines("challenges.txt")
 confessions_file = load_file_lines("confessions.txt")
 personal_file = load_file_lines("personality.txt")
+game_file = load_file_lines("game_questions.txt")  # ملف اللعبة
 
+# مؤشرات لكل مستخدم
 user_indices = {
     "سؤال": {},
     "تحدي": {},
     "اعتراف": {},
-    "شخصي": {}
+    "شخصي": {},
+    "لعبه": {}  # فهرس لعبة جديد
 }
 
-# فهارس عامة لكل نوع (مشتركة بين جميع المستخدمين)
+# فهارس عامة لكل نوع
 global_indices = {
     "سؤال": 0,
     "تحدي": 0,
     "اعتراف": 0,
-    "شخصي": 0
+    "شخصي": 0,
+    "لعبه": 0  # فهرس لعبة جديد
 }
 
 @app.route("/", methods=["GET"])
@@ -60,32 +65,37 @@ def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
 
+    # مساعدة
     if text == "مساعدة":
         help_text = (
             "الأوامر المتاحة:\n"
             "- سؤال\n"
             "- تحدي\n"
             "- اعتراف\n"
-            "- شخصي"
+            "- شخصي\n"
+            "- لعبه"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    if text in ["سؤال", "تحدي", "اعتراف", "شخصي"]:
+    # تحديد نوع القائمة حسب الأمر
+    if text in ["سؤال", "تحدي", "اعتراف", "شخصي", "لعبه"]:
         if text == "سؤال":
             file_list = questions_file
         elif text == "تحدي":
             file_list = challenges_file
         elif text == "اعتراف":
             file_list = confessions_file
-        else:
+        elif text == "شخصي":
             file_list = personal_file
+        else:  # لعبه
+            file_list = game_file
 
         if not file_list:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد بيانات في هذا القسم حالياً."))
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {text} حالياً."))
             return
 
-        # المؤشر العام المشترك
+        # المؤشر العام
         index = global_indices[text]
 
         msg = file_list[index]
@@ -96,7 +106,7 @@ def handle_message(event):
         # تحديث المؤشر العام
         global_indices[text] = (index + 1) % len(file_list)
 
-        # تحديث المؤشر الفردي للمستخدم أيضاً (يبقى متوافق مع السابق)
+        # تحديث مؤشر المستخدم
         user_indices[text][user_id] = global_indices[text]
         return
 
