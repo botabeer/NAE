@@ -14,9 +14,6 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# -------------------------
-# تحميل الملفات
-# -------------------------
 def load_file_lines(filename: str) -> typing.List[str]:
     try:
         with open(filename, "r", encoding="utf-8") as f:
@@ -29,9 +26,6 @@ challenges_file = load_file_lines("challenges.txt")
 confessions_file = load_file_lines("confessions.txt")
 personal_file = load_file_lines("personality.txt")
 
-# -------------------------
-# تتبع مؤشر كل مستخدم لكل نوع
-# -------------------------
 user_indices = {
     "سؤال": {},
     "تحدي": {},
@@ -39,9 +33,18 @@ user_indices = {
     "شخصي": {}
 }
 
-# -------------------------
-# Webhook
-# -------------------------
+# فهارس عامة لكل نوع (مشتركة بين جميع المستخدمين)
+global_indices = {
+    "سؤال": 0,
+    "تحدي": 0,
+    "اعتراف": 0,
+    "شخصي": 0
+}
+
+@app.route("/", methods=["GET"])
+def home():
+    return "البوت يعمل", 200
+
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers.get("X-Line-Signature", "")
@@ -52,22 +55,23 @@ def callback():
         abort(400)
     return "OK"
 
-# -------------------------
-# التعامل مع الرسائل
-# -------------------------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
 
     if text == "مساعدة":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(
-            text="الأوامر المتاحة:\n- سؤال\n- تحدي\n- اعتراف\n- شخصي"
-        ))
+        help_text = (
+            "الأوامر المتاحة:\n"
+            "- سؤال\n"
+            "- تحدي\n"
+            "- اعتراف\n"
+            "- شخصي"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
     if text in ["سؤال", "تحدي", "اعتراف", "شخصي"]:
-        # اختيار الملف المناسب
         if text == "سؤال":
             file_list = questions_file
         elif text == "تحدي":
@@ -77,16 +81,23 @@ def handle_message(event):
         else:
             file_list = personal_file
 
-        # مؤشر المستخدم
-        index = user_indices[text].get(user_id, 0)
+        if not file_list:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد بيانات في هذا القسم حالياً."))
+            return
+
+        # المؤشر العام المشترك
+        index = global_indices[text]
+
         msg = file_list[index]
 
-        # إرسال السؤال أو التحدي أو الاعتراف أو الشخصي
+        # إرسال الرسالة
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
-        # تحديث المؤشر بشكل دائري
-        index = (index + 1) % len(file_list)
-        user_indices[text][user_id] = index
+        # تحديث المؤشر العام
+        global_indices[text] = (index + 1) % len(file_list)
+
+        # تحديث المؤشر الفردي للمستخدم أيضاً (يبقى متوافق مع السابق)
+        user_indices[text][user_id] = global_indices[text]
         return
 
 if __name__ == "__main__":
