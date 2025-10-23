@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
-import os, typing, json
+import os, typing
 
 app = Flask(__name__)
 
@@ -46,7 +46,7 @@ global_indices = {
     "لعبه": 0
 }
 
-# أسئلة اللعبة
+# --- إعدادات لعبة التحليل ---
 game_questions = [
     {"text":"أي موقف يخليك تبكي أكثر؟","options":{"أ":"عجوز يقرأ رسالة من ابنه المتوفى","ب":"طفل يبيع مناديل في الشارع","ج":"كلب جريح ينظر لعيون الناس طلبًا للمساعدة"}},
     {"text":"لما يزعل منك شخص تحبه، وش تسوي؟","options":{"أ":"تحاول تراضيه بكل طاقتك","ب":"تبتعد شوي لين يهدأ","ج":"تكتب مشاعرك له برسالة طويلة"}},
@@ -57,44 +57,48 @@ game_questions = [
     {"text":"لما تحس بالحزن، وش طريقتك بالتعامل معه؟","options":{"أ":"تدعي وتلجأ لله","ب":"تطلع أو تشغل نفسك بشي ثاني","ج":"تكتب مشاعرك أو تبكي بصمت"}}
 ]
 
-# نتائج اللعبة
 results_text = {
     "أ":"قلبك من ذهب وتضحي من دون تردد\nأنت شخص مساند بطبيعتك، وتشعر الآخرين بالأمان\nلكن تذكر دائمًا أن طيبتك غالية، فلا تهدرها لمن لا يستحق",
     "ب":"قلبك نقي لكنه حذر\nأنت تعطي بحدود وتحب بعقل\nتعرف متى تقترب ومتى تبتعد\nومشاعرك ناضجة وتتعامل مع الحياة بوعي\nلكن لا تجعل الخوف يمنعك من الحب الحقيقي",
     "ج":"قلبك مرهف كالزجاج لكنه قوي كالجبال\nأنت تشعر بكل شيء بعمق\nتتأثر بسرعة لكنك تتعافى بصمت\nجرحك يترك أثرًا، لكنه يصقل شخصيتك المميزة"
 }
 
-# تخزين حالة كل مستخدم في اللعبة
+# جلسات اللعبة لكل مستخدم
 game_sessions = {}  # user_id: {"index":0, "answers":[]}
 
-def send_game_question(reply_token, user_id):
-    session = game_sessions[user_id]
-    q_index = session["index"]
+def build_flex_question(q_index):
     question = game_questions[q_index]
-
     buttons = []
     for key, val in question["options"].items():
         buttons.append({
             "type":"button",
-            "action":{"type":"message","label":f"{key}: {val}","text":f"game-{key}"}
+            "action":{
+                "type":"message",
+                "label":f"{key}: {val}",
+                "text":f"game-{key}"
+            }
         })
-
     bubble = {
         "type":"bubble",
         "header":{"type":"box","layout":"vertical","contents":[{"type":"text","text":f"السؤال {q_index+1}","weight":"bold","size":"lg"}]},
         "body":{"type":"box","layout":"vertical","contents":[{"type":"text","text":question["text"]},*buttons]}
     }
+    return bubble
 
-    flex_message = FlexSendMessage(alt_text=f"السؤال {q_index+1}", contents=bubble)
-    line_bot_api.reply_message(reply_token, flex_message)
-
-def calculate_game_result(user_id):
+def build_flex_result(user_id):
     answers = game_sessions[user_id]["answers"]
     counts = {"أ":0,"ب":0,"ج":0}
     for a in answers:
         counts[a] += 1
     max_ans = max(counts, key=counts.get)
-    return results_text[max_ans]
+    bubble = {
+        "type":"bubble",
+        "header":{"type":"box","layout":"vertical","contents":[{"type":"text","text":"نتيجتك","weight":"bold","size":"lg"}]},
+        "body":{"type":"box","layout":"vertical","contents":[{"type":"text","text":results_text[max_ans]}]}
+    }
+    return bubble
+
+# --- نهاية إعدادات اللعبة ---
 
 @app.route("/", methods=["GET"])
 def home():
@@ -129,10 +133,11 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # إذا بدأ المستخدم لعبة التحليل
+    # بدء لعبة التحليل
     if text.lower() == "تحليل":
         game_sessions[user_id] = {"index":0, "answers":[]}
-        send_game_question(event.reply_token, user_id)
+        bubble = build_flex_question(0)
+        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="السؤال 1", contents=bubble))
         return
 
     # التعامل مع إجابات اللعبة
@@ -140,16 +145,18 @@ def handle_message(event):
         answer = text.split("-")[1]
         game_sessions[user_id]["answers"].append(answer)
         game_sessions[user_id]["index"] += 1
+        q_index = game_sessions[user_id]["index"]
 
-        if game_sessions[user_id]["index"] < len(game_questions):
-            send_game_question(event.reply_token, user_id)
+        if q_index < len(game_questions):
+            bubble = build_flex_question(q_index)
+            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"السؤال {q_index+1}", contents=bubble))
         else:
-            result_text = calculate_game_result(user_id)
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result_text))
+            bubble = build_flex_result(user_id)
+            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="النتيجة", contents=bubble))
             del game_sessions[user_id]
         return
 
-    # الأوامر السابقة (سؤال، تحدي، اعتراف، شخصي، لعبه)
+    # التعامل مع الأوامر السابقة (سؤال، تحدي، اعتراف، شخصي، لعبه)
     if text in ["سؤال", "تحدي", "اعتراف", "شخصي", "لعبه"]:
         if text == "سؤال":
             file_list = questions_file
@@ -166,14 +173,11 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {text} حالياً."))
             return
 
-        # المؤشر العام
         index = global_indices[text]
         msg = file_list[index]
 
-        # إرسال الرسالة
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
-        # تحديث المؤشر العام
         global_indices[text] = (index + 1) % len(file_list)
         user_indices[text][user_id] = global_indices[text]
         return
