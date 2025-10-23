@@ -117,10 +117,17 @@ def handle_message(event):
         return
 
     # بدء لعبة التحليل
-    if text == "تحليل":
+    if "تحليل" in text:
         game_sessions[user_id] = {"index":0, "answers":[]}
         bubble = build_flex_question(0)
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="السؤال 1", contents=bubble))
+        try:
+            # إرسال في الخاص
+            line_bot_api.push_message(user_id, FlexSendMessage(alt_text="السؤال 1", contents=bubble))
+            # رسالة تأكيد
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="تم إرسال لعبة التحليل لك في الخاص!"))
+        except:
+            # fallback لو push لم ينجح
+            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="السؤال 1", contents=bubble))
         return
 
     # التعامل مع إجابات اللعبة
@@ -132,10 +139,10 @@ def handle_message(event):
 
         if q_index < len(game_questions):
             bubble = build_flex_question(q_index)
-            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"السؤال {q_index+1}", contents=bubble))
+            line_bot_api.push_message(user_id, FlexSendMessage(alt_text=f"السؤال {q_index+1}", contents=bubble))
         else:
             bubble = build_flex_result(user_id)
-            line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="النتيجة", contents=bubble))
+            line_bot_api.push_message(user_id, FlexSendMessage(alt_text="النتيجة", contents=bubble))
             del game_sessions[user_id]
         return
 
