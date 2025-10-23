@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, json, typing
+import os, typing, json
 
 app = Flask(__name__)
 
@@ -14,12 +14,40 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# --- تحميل ملف الألعاب ---
-with open("personality_games.json", "r", encoding="utf-8") as f:
-    games_data = json.load(f)
+# --- تحميل الملفات ---
+def load_file_lines(filename: str) -> typing.List[str]:
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            return [line.strip() for line in f if line.strip()]
+    except Exception:
+        return []
+
+questions_file = load_file_lines("questions.txt")
+challenges_file = load_file_lines("challenges.txt")
+confessions_file = load_file_lines("confessions.txt")
+personal_file = load_file_lines("personality.txt")
+more_file = load_file_lines("more_file.txt")
+
+# --- تحميل الألعاب من ملف JSON ---
+try:
+    with open("personality_games.json", "r", encoding="utf-8") as f:
+        games_file = json.load(f)
+except Exception:
+    games_file = []
 
 # --- مؤشرات لكل مستخدم ---
-user_indices: typing.Dict[str, typing.Dict[str, int]] = {}  # user_id -> {"current_game": "لعبة1", "question_index": 0, "answers": []}
+user_indices = {"سؤال":{}, "تحدي":{}, "اعتراف":{}, "شخصي":{}, "لعبه":{}, "أكثر":{}}
+global_indices = {"سؤال":0, "تحدي":0, "اعتراف":0, "شخصي":0, "لعبه":0, "أكثر":0}
+
+# --- قاموس المرادفات لكل أمر ---
+commands_map = {
+    "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة"],
+    "تحدي": ["تحدي", "تحديات", "تحد"],
+    "اعتراف": ["اعتراف", "اعترافات"],
+    "شخصي": ["شخصي", "شخصية", "شخصيات"],
+    "أكثر": ["أكثر", "اكثر"],
+    "لعبه": ["لعبه", "اللعبة"]
+}
 
 @app.route("/", methods=["GET"])
 def home():
@@ -37,79 +65,62 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
+    text = event.message.text.strip().lower()
     user_id = event.source.user_id
-    text = event.message.text.strip()
 
-    # --- التحقق إذا المستخدم بدأ لعبة ---
-    if user_id not in user_indices or "current_game" not in user_indices[user_id]:
-        # عرض الألعاب المتاحة
-        games_list = "\n".join([f"- {name}" for name in games_data.keys()])
-        reply_text = f"اختر اللعبة لتبدأ:\n{games_list}\n\nاكتب اسم اللعبة (مثلاً: لعبة1)"
-        user_indices[user_id] = {"current_game": None, "question_index": 0, "answers": []}
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_text))
+    # --- تحديد الأمر بناء على المرادفات ---
+    command = None
+    for key, variants in commands_map.items():
+        if text in [v.lower() for v in variants]:
+            command = key
+            break
+
+    # --- مساعدة ---
+    if text == "مساعدة":
+        help_text = (
+            "الأوامر المتاحة:\n"
+            "- سؤال\n"
+            "- شخصي\n"
+            "- تحدي\n"
+            "- اعتراف\n"
+            "- أكثر\n"
+            "- لعبه"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # --- المستخدم اختار اللعبة ---
-    if user_indices[user_id]["current_game"] is None:
-        chosen_game = text
-        if chosen_game not in games_data:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="الرجاء اختيار لعبة صحيحة من القائمة."))
+    # --- تنفيذ الأمر ---
+    if command:
+        if command == "سؤال":
+            file_list = questions_file
+        elif command == "تحدي":
+            file_list = challenges_file
+        elif command == "اعتراف":
+            file_list = confessions_file
+        elif command == "شخصي":
+            file_list = personal_file
+        elif command == "أكثر":
+            file_list = more_file
+        else:  # لعبه
+            file_list = games_file
+
+        if not file_list:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {command} حالياً."))
             return
-        user_indices[user_id]["current_game"] = chosen_game
-        user_indices[user_id]["question_index"] = 0
-        user_indices[user_id]["answers"] = []
 
-        first_question = games_data[chosen_game]["questions"][0]
-        options_text = "\n".join([f"{key}: {val}" for key, val in first_question["options"].items()])
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(
-            text=f"{first_question['question']}\n{options_text}"
-        ))
-        return
+        index = global_indices[command]
+        msg = file_list[index]
 
-    # --- المستخدم يجاوب على سؤال ---
-    current_game = user_indices[user_id]["current_game"]
-    question_index = user_indices[user_id]["question_index"]
-    answers = user_indices[user_id]["answers"]
-    game_questions = games_data[current_game]["questions"]
-
-    # تحقق من صحة الإجابة
-    if text not in ["أ", "ب", "ج"]:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="الرجاء اختيار: أ، ب، أو ج."))
-        return
-
-    answers.append(text)
-    question_index += 1
-
-    # --- سؤال جديد أو إنهاء اللعبة ---
-    if question_index < len(game_questions):
-        next_question = game_questions[question_index]
-        options_text = "\n".join([f"{key}: {val}" for key, val in next_question["options"].items()])
-        user_indices[user_id]["question_index"] = question_index
-        user_indices[user_id]["answers"] = answers
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(
-            text=f"{next_question['question']}\n{options_text}"
-        ))
-    else:
-        # حساب النتيجة بناءً على أغلب الاختيارات
-        counts = {"أ": 0, "ب": 0, "ج": 0}
-        for a in answers:
-            counts[a] += 1
-        max_choice = max(counts, key=counts.get)
-        results_text = games_data[current_game]["results_text"]
-        # اختر النتيجة المطابقة لأغلب الاختيارات
-        result_lines = results_text.split("\n")
-        for line in result_lines:
-            if line.startswith(f"أغلب ({max_choice})"):
-                final_result = line
-                break
+        # --- دعم كل أنواع الاجابات (أ، أ، 1، 1، ...) للألعاب الشخصية ---
+        if command == "شخصي" and isinstance(msg, dict):
+            # إذا اللعبة تحتوي أسئلة وأجوبة
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=json.dumps(msg, ensure_ascii=False)))
         else:
-            final_result = "النتيجة غير محددة."
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
 
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(
-            text=f"تم الانتهاء من {current_game}.\nنتيجتك:\n{final_result}"
-        ))
-        # إعادة تعيين المستخدم
-        user_indices[user_id] = {"current_game": None, "question_index": 0, "answers": []}
+        global_indices[command] = (index + 1) % len(file_list)
+        user_indices[command][user_id] = global_indices[command]
+        return
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
