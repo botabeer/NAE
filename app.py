@@ -98,8 +98,6 @@ def build_flex_result(user_id):
     }
     return bubble
 
-# --- نهاية إعدادات اللعبة ---
-
 @app.route("/", methods=["GET"])
 def home():
     return "البوت يعمل", 200
@@ -133,7 +131,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # بدء لعبة التحليل
+    # بدء لعبة التحليل مباشرة
     if text.lower() == "تحليل":
         game_sessions[user_id] = {"index":0, "answers":[]}
         bubble = build_flex_question(0)
