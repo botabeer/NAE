@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
-import os
+import os, typing
 
 app = Flask(__name__)
 
@@ -14,16 +14,39 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# أسئلة اللعبة
+def load_file_lines(filename: str) -> typing.List[str]:
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            return [line.strip() for line in f if line.strip()]
+    except Exception:
+        return []
+
+# تحميل الملفات
+questions_file = load_file_lines("questions.txt")
+challenges_file = load_file_lines("challenges.txt")
+confessions_file = load_file_lines("confessions.txt")
+personal_file = load_file_lines("personality.txt")
+game_file = load_file_lines("game_questions.txt")
+
+# مؤشرات لكل مستخدم
+user_indices = {"سؤال":{}, "تحدي":{}, "اعتراف":{}, "شخصي":{}, "لعبه":{}}
+global_indices = {"سؤال":0, "تحدي":0, "اعتراف":0, "شخصي":0, "لعبه":0}
+
+# --- لعبة تحليل القلوب ---
 game_questions = [
     {"text":"أي موقف يخليك تبكي أكثر؟","options":{"أ":"عجوز يقرأ رسالة من ابنه المتوفى","ب":"طفل يبيع مناديل في الشارع","ج":"كلب جريح ينظر لعيون الناس طلبًا للمساعدة"}},
-    {"text":"لما يزعل منك شخص تحبه، وش تسوي؟","options":{"أ":"تحاول تراضيه بكل طاقتك","ب":"تبتعد شوي لين يهدأ","ج":"تكتب مشاعرك له برسالة طويلة"}}
+    {"text":"لما يزعل منك شخص تحبه، وش تسوي؟","options":{"أ":"تحاول تراضيه بكل طاقتك","ب":"تبتعد شوي لين يهدأ","ج":"تكتب مشاعرك له برسالة طويلة"}},
+    {"text":"لو أحد جرحك بكلمة قوية، وش تكون ردّة فعلك؟","options":{"أ":"تسامحه لكنك تتألم من الداخل","ب":"ترد عليه بكلمة أقوى","ج":"تسكت، لكن الكلمة تبقى في بالك فترة"}},
+    {"text":"وش أكثر شيء يخوفك؟","options":{"أ":"فقدان شخص غالي","ب":"الفشل بعد تعب طويل","ج":"إنك ما تفهم نفسك أو تضيع مشاعرك"}},
+    {"text":"لما أحد يمرّ بضيق، وش تسوي؟","options":{"أ":"تكون أول شخص يوقف معه","ب":"تواسيه لكن بدون ما تتعب نفسك","ج":"تتأثر جدًا وتحزن كأنك تعيش وجعه"}},
+    {"text":"كيف تتعامل مع الذكريات القديمة؟","options":{"أ":"تحتفظ فيها لأنها غالية","ب":"تحاول تنساها لأنها توجعك","ج":"ترجع لها أحيانًا لأنها تعلّمك الصبر"}},
+    {"text":"لما تحس بالحزن، وش طريقتك بالتعامل معه؟","options":{"أ":"تدعي وتلجأ لله","ب":"تطلع أو تشغل نفسك بشي ثاني","ج":"تكتب مشاعرك أو تبكي بصمت"}}
 ]
 
 results_text = {
-    "أ":"قلبك من ذهب",
-    "ب":"قلبك نقي لكنه حذر",
-    "ج":"قلبك مرهف كالزجاج"
+    "أ":"قلبك من ذهب وتضحي من دون تردد\nأنت شخص مساند بطبيعتك، وتشعر الآخرين بالأمان\nلكن تذكر دائمًا أن طيبتك غالية، فلا تهدرها لمن لا يستحق",
+    "ب":"قلبك نقي لكنه حذر\nأنت تعطي بحدود وتحب بعقل\nتعرف متى تقترب ومتى تبتعد\nومشاعرك ناضجة وتتعامل مع الحياة بوعي\nلكن لا تجعل الخوف يمنعك من الحب الحقيقي",
+    "ج":"قلبك مرهف كالزجاج لكنه قوي كالجبال\nأنت تشعر بكل شيء بعمق\nتتأثر بسرعة لكنك تتعافى بصمت\nجرحك يترك أثرًا، لكنه يصقل شخصيتك المميزة"
 }
 
 game_sessions = {}  # user_id: {"index":0, "answers":[]}
@@ -76,15 +99,31 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    text = event.message.text.strip()
+    text = event.message.text.strip().lower()
     user_id = event.source.user_id
 
-    if text.lower() == "تحليل":
+    # مساعدة
+    if text == "مساعدة":
+        help_text = (
+            "الأوامر المتاحة:\n"
+            "- سؤال\n"
+            "- تحدي\n"
+            "- اعتراف\n"
+            "- شخصي\n"
+            "- لعبه\n"
+            "- تحليل"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
+        return
+
+    # بدء لعبة التحليل
+    if text == "تحليل":
         game_sessions[user_id] = {"index":0, "answers":[]}
         bubble = build_flex_question(0)
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="السؤال 1", contents=bubble))
         return
 
+    # التعامل مع إجابات اللعبة
     if text.startswith("game-") and user_id in game_sessions:
         answer = text.split("-")[1]
         game_sessions[user_id]["answers"].append(answer)
@@ -98,6 +137,25 @@ def handle_message(event):
             bubble = build_flex_result(user_id)
             line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="النتيجة", contents=bubble))
             del game_sessions[user_id]
+        return
+
+    # باقي الأوامر (سؤال، تحدي، اعتراف، شخصي، لعبه)
+    if text in ["سؤال","تحدي","اعتراف","شخصي","لعبه"]:
+        if text == "سؤال": file_list = questions_file
+        elif text == "تحدي": file_list = challenges_file
+        elif text == "اعتراف": file_list = confessions_file
+        elif text == "شخصي": file_list = personal_file
+        else: file_list = game_file
+
+        if not file_list:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {text} حالياً."))
+            return
+
+        index = global_indices[text]
+        msg = file_list[index]
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+        global_indices[text] = (index + 1) % len(file_list)
+        user_indices[text][user_id] = global_indices[text]
         return
 
 if __name__ == "__main__":
