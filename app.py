@@ -1,8 +1,8 @@
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, typing
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage
+import os, typing, json
 
 app = Flask(__name__)
 
@@ -34,7 +34,7 @@ user_indices = {
     "تحدي": {},
     "اعتراف": {},
     "شخصي": {},
-    "لعبه": {}  # فهرس لعبة جديد
+    "لعبه": {}
 }
 
 # فهارس عامة لكل نوع
@@ -43,8 +43,58 @@ global_indices = {
     "تحدي": 0,
     "اعتراف": 0,
     "شخصي": 0,
-    "لعبه": 0  # فهرس لعبة جديد
+    "لعبه": 0
 }
+
+# أسئلة اللعبة
+game_questions = [
+    {"text":"أي موقف يخليك تبكي أكثر؟","options":{"أ":"عجوز يقرأ رسالة من ابنه المتوفى","ب":"طفل يبيع مناديل في الشارع","ج":"كلب جريح ينظر لعيون الناس طلبًا للمساعدة"}},
+    {"text":"لما يزعل منك شخص تحبه، وش تسوي؟","options":{"أ":"تحاول تراضيه بكل طاقتك","ب":"تبتعد شوي لين يهدأ","ج":"تكتب مشاعرك له برسالة طويلة"}},
+    {"text":"لو أحد جرحك بكلمة قوية، وش تكون ردّة فعلك؟","options":{"أ":"تسامحه لكنك تتألم من الداخل","ب":"ترد عليه بكلمة أقوى","ج":"تسكت، لكن الكلمة تبقى في بالك فترة"}},
+    {"text":"وش أكثر شيء يخوفك؟","options":{"أ":"فقدان شخص غالي","ب":"الفشل بعد تعب طويل","ج":"إنك ما تفهم نفسك أو تضيع مشاعرك"}},
+    {"text":"لما أحد يمرّ بضيق، وش تسوي؟","options":{"أ":"تكون أول شخص يوقف معه","ب":"تواسيه لكن بدون ما تتعب نفسك","ج":"تتأثر جدًا وتحزن كأنك تعيش وجعه"}},
+    {"text":"كيف تتعامل مع الذكريات القديمة؟","options":{"أ":"تحتفظ فيها لأنها غالية","ب":"تحاول تنساها لأنها توجعك","ج":"ترجع لها أحيانًا لأنها تعلّمك الصبر"}},
+    {"text":"لما تحس بالحزن، وش طريقتك بالتعامل معه؟","options":{"أ":"تدعي وتلجأ لله","ب":"تطلع أو تشغل نفسك بشي ثاني","ج":"تكتب مشاعرك أو تبكي بصمت"}}
+]
+
+# نتائج اللعبة
+results_text = {
+    "أ":"قلبك من ذهب وتضحي من دون تردد\nأنت شخص مساند بطبيعتك، وتشعر الآخرين بالأمان\nلكن تذكر دائمًا أن طيبتك غالية، فلا تهدرها لمن لا يستحق",
+    "ب":"قلبك نقي لكنه حذر\nأنت تعطي بحدود وتحب بعقل\nتعرف متى تقترب ومتى تبتعد\nومشاعرك ناضجة وتتعامل مع الحياة بوعي\nلكن لا تجعل الخوف يمنعك من الحب الحقيقي",
+    "ج":"قلبك مرهف كالزجاج لكنه قوي كالجبال\nأنت تشعر بكل شيء بعمق\nتتأثر بسرعة لكنك تتعافى بصمت\nجرحك يترك أثرًا، لكنه يصقل شخصيتك المميزة"
+}
+
+# تخزين حالة كل مستخدم في اللعبة
+game_sessions = {}  # user_id: {"index":0, "answers":[]}
+
+def send_game_question(reply_token, user_id):
+    session = game_sessions[user_id]
+    q_index = session["index"]
+    question = game_questions[q_index]
+
+    buttons = []
+    for key, val in question["options"].items():
+        buttons.append({
+            "type":"button",
+            "action":{"type":"message","label":f"{key}: {val}","text":f"game-{key}"}
+        })
+
+    bubble = {
+        "type":"bubble",
+        "header":{"type":"box","layout":"vertical","contents":[{"type":"text","text":f"السؤال {q_index+1}","weight":"bold","size":"lg"}]},
+        "body":{"type":"box","layout":"vertical","contents":[{"type":"text","text":question["text"]},*buttons]}
+    }
+
+    flex_message = FlexSendMessage(alt_text=f"السؤال {q_index+1}", contents=bubble)
+    line_bot_api.reply_message(reply_token, flex_message)
+
+def calculate_game_result(user_id):
+    answers = game_sessions[user_id]["answers"]
+    counts = {"أ":0,"ب":0,"ج":0}
+    for a in answers:
+        counts[a] += 1
+    max_ans = max(counts, key=counts.get)
+    return results_text[max_ans]
 
 @app.route("/", methods=["GET"])
 def home():
@@ -73,12 +123,33 @@ def handle_message(event):
             "- تحدي\n"
             "- اعتراف\n"
             "- شخصي\n"
-            "- لعبه"
+            "- لعبه\n"
+            "- تحليل"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # تحديد نوع القائمة حسب الأمر
+    # إذا بدأ المستخدم لعبة التحليل
+    if text.lower() == "تحليل":
+        game_sessions[user_id] = {"index":0, "answers":[]}
+        send_game_question(event.reply_token, user_id)
+        return
+
+    # التعامل مع إجابات اللعبة
+    if text.startswith("game-") and user_id in game_sessions:
+        answer = text.split("-")[1]
+        game_sessions[user_id]["answers"].append(answer)
+        game_sessions[user_id]["index"] += 1
+
+        if game_sessions[user_id]["index"] < len(game_questions):
+            send_game_question(event.reply_token, user_id)
+        else:
+            result_text = calculate_game_result(user_id)
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=result_text))
+            del game_sessions[user_id]
+        return
+
+    # الأوامر السابقة (سؤال، تحدي، اعتراف، شخصي، لعبه)
     if text in ["سؤال", "تحدي", "اعتراف", "شخصي", "لعبه"]:
         if text == "سؤال":
             file_list = questions_file
@@ -97,7 +168,6 @@ def handle_message(event):
 
         # المؤشر العام
         index = global_indices[text]
-
         msg = file_list[index]
 
         # إرسال الرسالة
@@ -105,8 +175,6 @@ def handle_message(event):
 
         # تحديث المؤشر العام
         global_indices[text] = (index + 1) % len(file_list)
-
-        # تحديث مؤشر المستخدم
         user_indices[text][user_id] = global_indices[text]
         return
 
