@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-import os, typing, json
+import os, json, typing
 
 app = Flask(__name__)
 
@@ -28,20 +28,21 @@ confessions_file = load_file_lines("confessions.txt")
 personal_file = load_file_lines("personality.txt")
 more_file = load_file_lines("more_file.txt")
 
-# --- تحميل الألعاب من ملف JSON ---
+# تحميل ألعاب من JSON
 try:
     with open("personality_games.json", "r", encoding="utf-8") as f:
-        games_file = json.load(f)
+        games_data = json.load(f)
 except Exception:
-    games_file = []
+    games_data = {}
 
 # --- مؤشرات لكل مستخدم ---
 user_indices = {"سؤال":{}, "تحدي":{}, "اعتراف":{}, "شخصي":{}, "لعبه":{}, "أكثر":{}}
+user_game_progress = {}  # لتتبع السؤال الحالي لكل مستخدم في كل لعبة
 global_indices = {"سؤال":0, "تحدي":0, "اعتراف":0, "شخصي":0, "لعبه":0, "أكثر":0}
 
 # --- قاموس المرادفات لكل أمر ---
 commands_map = {
-    "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة"],
+    "سؤال": ["سؤال", "اسأله", "اسئلة", "سوال"],
     "تحدي": ["تحدي", "تحديات", "تحد"],
     "اعتراف": ["اعتراف", "اعترافات"],
     "شخصي": ["شخصي", "شخصية", "شخصيات"],
@@ -63,10 +64,27 @@ def callback():
         abort(400)
     return "OK"
 
+def format_game_question(game_title, question_obj):
+    options_text = "\n".join([f"{key}: {val}" for key, val in question_obj["options"].items()])
+    return f"{game_title}\n\n{question_obj['question']}\n{options_text}"
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text.strip().lower()
     user_id = event.source.user_id
+
+    # --- مساعدة ---
+    if text == "مساعدة":
+        help_text = (
+            "- سؤال\n"
+            "- شخصي\n"
+            "- تحدي\n"
+            "- اعتراف\n"
+            "- اكثر\n"
+            "- لعبه"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
+        return
 
     # --- تحديد الأمر بناء على المرادفات ---
     command = None
@@ -74,20 +92,6 @@ def handle_message(event):
         if text in [v.lower() for v in variants]:
             command = key
             break
-
-    # --- مساعدة ---
-    if text == "مساعدة":
-        help_text = (
-            "الأوامر المتاحة:\n"
-            "- سؤال\n"
-            "- شخصي\n"
-            "- تحدي\n"
-            "- اعتراف\n"
-            "- أكثر\n"
-            "- لعبه"
-        )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
-        return
 
     # --- تنفيذ الأمر ---
     if command:
@@ -102,22 +106,65 @@ def handle_message(event):
         elif command == "أكثر":
             file_list = more_file
         else:  # لعبه
-            file_list = games_file
+            # نرسل قائمة الألعاب إذا المستخدم يبدأ أول مرة
+            if user_id not in user_game_progress:
+                games_list_text = "\n".join([f"{i+1}. {g['title']}" for i, g in enumerate(games_data.values())])
+                user_game_progress[user_id] = {"current_game": None, "question_index": 0, "answers": {}}
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"اختر اللعبة لتبدأ:\n{games_list_text}"))
+                return
+            else:
+                progress = user_game_progress[user_id]
+                # إذا لم يختار لعبة بعد
+                if progress["current_game"] is None:
+                    # نحاول تحديد اللعبة بناءً على رقم أو اسم
+                    for key, g in enumerate(games_data.values(), start=1):
+                        if str(key) == text or text in g["title"].lower():
+                            game_key = list(games_data.keys())[key-1]
+                            progress["current_game"]["current_game"] = game_key
+                            break
+                    if progress["current_game"] is None:
+                        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="اختيار غير صحيح، اكتب رقم اللعبة أو اسمها."))
+                        return
 
+                # اللعبة الحالية
+                game_key = progress["current_game"]["current_game"]
+                game = games_data[game_key]
+                question_index = progress["question_index"]
+                question_obj = game["questions"][question_index]
+
+                # --- قبول كل الإجابات أ أ 1 1 ---
+                answer = text.upper()
+                if answer in ["أ", "1"]:  # أي خيار يعتبر صحيح
+                    progress["answers"][question_index] = "أ"
+                elif answer in ["ب", "2"]:
+                    progress["answers"][question_index] = "ب"
+                elif answer in ["ج", "3"]:
+                    progress["answers"][question_index] = "ج"
+
+                # زيادة السؤال
+                progress["question_index"] += 1
+
+                if progress["question_index"] >= len(game["questions"]):
+                    # عرض النتيجة
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=game["results_text"]))
+                    # إعادة تعيين لتتمكن من اختيار لعبة جديدة
+                    user_game_progress.pop(user_id)
+                    return
+                else:
+                    next_question = game["questions"][progress["question_index"]]
+                    line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                        text=format_game_question(game["title"], next_question)
+                    ))
+                    return
+
+        # --- للأوامر العادية ---
         if not file_list:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {command} حالياً."))
             return
 
         index = global_indices[command]
         msg = file_list[index]
-
-        # --- دعم كل أنواع الاجابات (أ، أ، 1، 1، ...) للألعاب الشخصية ---
-        if command == "شخصي" and isinstance(msg, dict):
-            # إذا اللعبة تحتوي أسئلة وأجوبة
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=json.dumps(msg, ensure_ascii=False)))
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
-
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
         global_indices[command] = (index + 1) % len(file_list)
         user_indices[command][user_id] = global_indices[command]
         return
