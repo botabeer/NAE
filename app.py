@@ -30,32 +30,19 @@ confessions_file = load_file_lines("confessions.txt")
 personal_file = load_file_lines("personality.txt")
 more_file = load_file_lines("more_file.txt")
 
-# --- تحميل الأمثال والالغاز من JSON ---
-try:
-    with open("proverbs.json", "r", encoding="utf-8") as f:
-        proverbs = json.load(f)
-except Exception:
-    proverbs = []
-
+# --- تحميل الألغاز من JSON ---
 try:
     with open("riddles.json", "r", encoding="utf-8") as f:
         riddles = json.load(f)
 except Exception:
     riddles = []
 
-# --- حفظ مؤشر التكرار لكل مستخدم لكل نوع ---
-user_indices_order = {
-    "سؤال": {},
-    "تحدي": {},
-    "اعتراف": {},
-    "شخصي": {},
-    "أكثر": {}
-}
-global_indices = {"سؤال":0, "تحدي":0, "اعتراف":0, "شخصي":0, "أكثر":0}
+# --- حفظ مؤشر التكرار لكل مستخدم لكل نوع لغز ---
+user_riddle_index = {}
+riddle_order = list(range(len(riddles)))
 
-# --- حفظ حالة المستخدم للغز والمثل الحالي ---
-user_current_riddle = {}  # user_id: {"idx":0, "state":"question/hint"}
-user_current_proverb = {}  # user_id: {"idx":0}
+# --- حفظ حالة المستخدم للغز الحالي ---
+user_current_riddle = {}  # user_id: {"idx":0, "state":"question"}
 
 # --- تحميل ألعاب الشخصية ---
 try:
@@ -66,19 +53,19 @@ except Exception:
 
 games_list = [games_data[key] for key in sorted(games_data.keys())]
 
-# --- تحميل النصوص التفصيلية ---
+# --- متابعة حالة كل مستخدم ---
+user_game_state = {}  # user_id: {"game_index": 0, "question_index": 0, "answers": []}
+
+# --- تحميل النصوص التفصيلية من ملف خارجي ---
 try:
     with open("detailed_results.json", "r", encoding="utf-8") as f:
         detailed_results = json.load(f)
 except Exception:
     detailed_results = {}
 
-# --- حفظ ترتيب الألغاز لتجنب التكرار ---
-user_riddle_index = {}
-riddle_order = list(range(len(riddles)))
-
-# --- متابعة حالة كل مستخدم للعبة ---
-user_game_state = {}  # user_id: {"game_index": 0, "question_index": 0, "answers": []}
+# --- مؤشرات لكل مستخدم للأوامر الأخرى ---
+user_indices = {"سؤال":{}, "تحدي":{}, "اعتراف":{}, "شخصي":{}, "أكثر":{}}
+global_indices = {"سؤال":0, "تحدي":0, "اعتراف":0, "شخصي":0, "أكثر":0}
 
 # --- قاموس المرادفات لكل أمر ---
 commands_map = {
@@ -87,7 +74,6 @@ commands_map = {
     "اعتراف": ["اعتراف", "اعترافات"],
     "شخصي": ["شخصي", "شخصية", "شخصيات"],
     "أكثر": ["أكثر", "اكثر"],
-    "امثله": ["امثله"],
     "لغز": ["لغز", "الغاز", "ألغاز"]
 }
 
@@ -120,30 +106,17 @@ def handle_message(event):
             "- اعتراف\n"
             "- أكثر\n"
             "- لعبه\n"
-            "- امثله\n"
             "- لغز"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # --- التعرف على الأمر ---
+    # --- التعامل مع الأوامر ---
     command = None
     for key, variants in commands_map.items():
         if text in [v.lower() for v in variants]:
             command = key
             break
-
-    # --- عرض أمثال ---
-    if command == "امثله":
-        if proverbs:
-            idx = random.randint(0, len(proverbs)-1)
-            selected = proverbs[idx]
-            display_text = f"{selected.get('emoji','')} {selected.get('text','')}"
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=display_text))
-            user_current_proverb[user_id] = {"idx": idx}
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد أمثال حالياً."))
-        return
 
     # --- عرض لغز ---
     if command == "لغز":
@@ -162,7 +135,7 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد ألغاز حالياً."))
         return
 
-    # --- تلميح / لمح للغز ---
+    # --- تلميح أو لمح للغز ---
     if text in ["تلميح", "لمح"]:
         if user_id in user_current_riddle and user_current_riddle[user_id]["state"] == "question":
             idx = user_current_riddle[user_id]["idx"]
@@ -171,7 +144,7 @@ def handle_message(event):
             user_current_riddle[user_id]["state"] = "hint"
         return
 
-    # --- إجابة أو جاوب ---
+    # --- إجابة أو جاوب للغز ---
     if text in ["جاوب", "الإجابة"]:
         if user_id in user_current_riddle:
             idx = user_current_riddle[user_id]["idx"]
@@ -179,29 +152,28 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"الإجابة: {answer}"))
             del user_current_riddle[user_id]
             return
-        if user_id in user_current_proverb:
-            idx = user_current_proverb[user_id]["idx"]
-            answer = proverbs[idx].get("text", "")
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=answer))
-            del user_current_proverb[user_id]
-            return
 
-    # --- الأسئلة التقليدية: سؤال، تحدي، اعتراف، شخصي، أكثر ---
-    if command in ["سؤال","تحدي","اعتراف","شخصي","أكثر"]:
-        file_map = {
-            "سؤال": questions_file,
-            "تحدي": challenges_file,
-            "اعتراف": confessions_file,
-            "شخصي": personal_file,
-            "أكثر": more_file
-        }
-        file_list = file_map.get(command, [])
+    # --- باقي الأوامر التقليدية ---
+    if command:
+        if command == "سؤال":
+            file_list = questions_file
+        elif command == "تحدي":
+            file_list = challenges_file
+        elif command == "اعتراف":
+            file_list = confessions_file
+        elif command == "شخصي":
+            file_list = personal_file
+        elif command == "أكثر":
+            file_list = more_file
+        else:
+            file_list = []
+
         if file_list:
             index = global_indices[command]
             msg = file_list[index]
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
             global_indices[command] = (index + 1) % len(file_list)
-            user_indices_order[command][user_id] = global_indices[command]
+            user_indices[command][user_id] = global_indices[command]
         else:
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {command} حالياً."))
         return
@@ -251,12 +223,12 @@ def handle_message(event):
                 options_text = "\n".join([f"{k}: {v}" for k, v in q["options"].items()])
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{q['question']}\n{options_text}"))
             else:
-                a_count = {"أ":0,"ب":0,"ج":0}
+                a_count = {"أ": 0, "ب": 0, "ج": 0}
                 for ans in state["answers"]:
                     if ans in a_count:
                         a_count[ans] += 1
                 most = max(a_count, key=a_count.get)
-                game_key = f"لعبة{state['game_index']+1}"
+                game_key = list(games_data.keys())[state["game_index"]]
                 detailed_text = detailed_results.get(game_key, {}).get(most, "لا توجد نتيجة لهذه الإجابة.")
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"📝 النتيجة:\n{detailed_text}"))
                 del user_game_state[user_id]
