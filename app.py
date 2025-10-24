@@ -1,4 +1,5 @@
 import json
+import random
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -15,7 +16,7 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# --- تحميل الملفات الأخرى ---
+# --- تحميل الملفات النصية ---
 def load_file_lines(filename: str) -> typing.List[str]:
     try:
         with open(filename, "r", encoding="utf-8") as f:
@@ -29,14 +30,26 @@ confessions_file = load_file_lines("confessions.txt")
 personal_file = load_file_lines("personality.txt")
 more_file = load_file_lines("more_file.txt")
 
-# --- تحميل الألعاب من ملف JSON ---
+# --- تحميل الأمثال والالغاز من JSON ---
+try:
+    with open("proverbs.json", "r", encoding="utf-8") as f:
+        proverbs = json.load(f)
+except Exception:
+    proverbs = []
+
+try:
+    with open("riddles.json", "r", encoding="utf-8") as f:
+        riddles = json.load(f)
+except Exception:
+    riddles = []
+
+# --- تحميل ألعاب الشخصية ---
 try:
     with open("personality_games.json", "r", encoding="utf-8") as f:
         games_data = json.load(f)
 except Exception:
     games_data = {}
 
-# ترتيب الألعاب حسب المفتاح
 games_list = [games_data[key] for key in sorted(games_data.keys())]
 
 # --- متابعة حالة كل مستخدم ---
@@ -197,7 +210,9 @@ commands_map = {
     "تحدي": ["تحدي", "تحديات", "تحد"],
     "اعتراف": ["اعتراف", "اعترافات"],
     "شخصي": ["شخصي", "شخصية", "شخصيات"],
-    "أكثر": ["أكثر", "اكثر"]
+    "أكثر": ["أكثر", "اكثر"],
+    "امثله": ["امثله"],
+    "لغز": ["لغز", "الغاز", "ألغاز"]
 }
 
 @app.route("/", methods=["GET"])
@@ -219,7 +234,6 @@ def handle_message(event):
     user_id = event.source.user_id
     text = event.message.text.strip().lower()
 
-    # --- مساعدة ---
     if text == "مساعدة":
         help_text = (
             "الأوامر المتاحة:\n"
@@ -228,12 +242,13 @@ def handle_message(event):
             "- تحدي\n"
             "- اعتراف\n"
             "- أكثر\n"
-            "- لعبه"
+            "- لعبه\n"
+            "- امثله\n"
+            "- لغز"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # --- أوامر الألعاب الأخرى ---
     command = None
     for key, variants in commands_map.items():
         if text in [v.lower() for v in variants]:
@@ -251,6 +266,21 @@ def handle_message(event):
             file_list = personal_file
         elif command == "أكثر":
             file_list = more_file
+        elif command == "امثله":
+            if proverbs:
+                selected = random.choice(proverbs)
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=selected.get("text", "")))
+            else:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد أمثله حالياً."))
+            return
+        elif command == "لغز":
+            if riddles:
+                selected = random.choice(riddles)
+                reply = f"السؤال: {selected.get('question', '')}\nتلميح: {selected.get('hint', '')}\nالإجابة: {selected.get('answer', '')}"
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+            else:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد ألغاز حالياً."))
+            return
 
         if file_list:
             index = global_indices[command]
@@ -262,7 +292,6 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {command} حالياً."))
         return
 
-    # --- بدء لعبة الشخصية ---
     if text == "لعبه":
         games_titles = "\n".join([
             "1. أي نوع من القلوب تمتلك",
@@ -279,7 +308,6 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"اختر اللعبة لتبدأ:\n{games_titles}"))
         return
 
-    # --- اختيار رقم اللعبة ---
     if text.isdigit():
         num = int(text)
         if 1 <= num <= len(games_list):
@@ -290,7 +318,6 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{first_question['question']}\n{options_text}"))
         return
 
-    # --- الرد على سؤال داخل اللعبة ---
     if user_id in user_game_state:
         state = user_game_state[user_id]
         answer = text.strip()
@@ -307,13 +334,11 @@ def handle_message(event):
                 options_text = "\n".join([f"{k}: {v}" for k, v in q["options"].items()])
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{q['question']}\n{options_text}"))
             else:
-                # نهاية اللعبة، عرض النتيجة المفصلة
                 a_count = {"أ": 0, "ب": 0, "ج": 0}
                 for ans in state["answers"]:
                     if ans in a_count:
                         a_count[ans] += 1
                 most = max(a_count, key=a_count.get)
-
                 game_key = list(games_data.keys())[state["game_index"]]
                 detailed_text = detailed_results.get(game_key, {}).get(most, "")
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"📝 النتيجة:\n{detailed_text}"))
