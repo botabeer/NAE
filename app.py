@@ -43,9 +43,16 @@ try:
 except Exception:
     riddles = []
 
-# --- حفظ مؤشر التكرار لكل مستخدم لكل نوع لغز ---
-user_riddle_index = {}
-riddle_order = list(range(len(riddles)))
+# --- حفظ مؤشر التكرار لكل مستخدم لكل نوع ---
+user_indices = {
+    "سؤال": {},
+    "تحدي": {},
+    "اعتراف": {},
+    "شخصي": {},
+    "أكثر": {},
+    "امثله": {},
+    "لغز": {}
+}
 
 # --- حفظ حالة المستخدم للغز والمثل الحالي ---
 user_current_riddle = {}  # user_id: {"idx":0, "state":"question/hint"}
@@ -70,10 +77,6 @@ try:
 except Exception:
     detailed_results = {}
 
-# --- مؤشرات لكل مستخدم للأوامر الأخرى ---
-user_indices = {"سؤال":{}, "تحدي":{}, "اعتراف":{}, "شخصي":{}, "أكثر":{}}
-global_indices = {"سؤال":0, "تحدي":0, "اعتراف":0, "شخصي":0, "أكثر":0}
-
 # --- قاموس المرادفات لكل أمر ---
 commands_map = {
     "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة"],
@@ -84,6 +87,9 @@ commands_map = {
     "امثله": ["امثله"],
     "لغز": ["لغز", "الغاز", "ألغاز"]
 }
+
+# --- ترتيب عرض الأوامر ---
+order_commands = ["سؤال", "تحدي", "اعتراف", "شخصي", "أكثر", "لغز", "امثله"]
 
 @app.route("/", methods=["GET"])
 def home():
@@ -98,6 +104,15 @@ def callback():
     except InvalidSignatureError:
         abort(400)
     return "OK"
+
+def get_next_item(user_id: str, command: str, file_list: list):
+    """تعطي العنصر التالي بالدور لكل مستخدم"""
+    if user_id not in user_indices[command]:
+        user_indices[command][user_id] = 0
+    idx = user_indices[command][user_id]
+    msg = file_list[idx % len(file_list)]
+    user_indices[command][user_id] = (idx + 1) % len(file_list)
+    return msg
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -115,65 +130,83 @@ def handle_message(event):
             "- أكثر\n"
             "- لعبه\n"
             "- امثله\n"
-            "- لغز"
+            "- لغز\n"
+            "- تلميح / لمح / جاوب / الإجابة"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
 
-    # --- التعامل مع الأوامر ---
+    # --- تحديد الأمر ---
     command = None
     for key, variants in commands_map.items():
         if text in [v.lower() for v in variants]:
             command = key
             break
 
-    # --- عرض أمثال ---
-    if command == "امثله":
-        if proverbs:
-            idx = random.randint(0, len(proverbs)-1)
-            selected = proverbs[idx]
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(
-                text=f"السؤال: {selected.get('emoji','')}"
-            ))
-            user_current_proverb[user_id] = {"idx": idx}
+    # --- التعامل مع الأوامر ---
+    if command:
+        # --- أمثال ---
+        if command == "امثله":
+            if proverbs:
+                idx = user_indices["امثله"].get(user_id, 0)
+                selected = proverbs[idx % len(proverbs)]
+                user_indices["امثله"][user_id] = (idx + 1) % len(proverbs)
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                    text=f"📝 امثلـة: {selected.get('emoji','')}"
+                ))
+                user_current_proverb[user_id] = {"idx": idx}
+            else:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد أمثال حالياً."))
+            return
+
+        # --- لغز ---
+        elif command == "لغز":
+            if riddles:
+                if user_id not in user_indices["لغز"]:
+                    user_indices["لغز"][user_id] = 0
+                idx = user_indices["لغز"][user_id]
+                selected = riddles[idx % len(riddles)]
+                user_indices["لغز"][user_id] = (idx + 1) % len(riddles)
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(
+                    text=f"📝 لغز: {selected.get('question','')}"
+                ))
+                user_current_riddle[user_id] = {"idx": idx, "state": "question"}
+            else:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد ألغاز حالياً."))
+            return
+
+        # --- باقي الأوامر النصية ---
         else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد أمثله حالياً."))
-        return
+            file_map = {
+                "سؤال": questions_file,
+                "تحدي": challenges_file,
+                "اعتراف": confessions_file,
+                "شخصي": personal_file,
+                "أكثر": more_file
+            }
+            file_list = file_map.get(command, [])
+            if file_list:
+                msg = get_next_item(user_id, command, file_list)
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
+            else:
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {command} حالياً."))
+            return
 
-    # --- عرض لغز ---
-    if command == "لغز":
-        if riddles:
-            if user_id not in user_riddle_index:
-                user_riddle_index[user_id] = 0
-                random.shuffle(riddle_order)
-            idx = riddle_order[user_riddle_index[user_id] % len(riddles)]
-            selected = riddles[idx]
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(
-                text=f"السؤال: {selected.get('question','')}"
-            ))
-            user_current_riddle[user_id] = {"idx": idx, "state": "question"}
-            user_riddle_index[user_id] += 1
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد ألغاز حالياً."))
-        return
-
-    # --- تلميح أو لمح للغز ---
-    if text in ["تلميح", "لمح"]:
-        if user_id in user_current_riddle and user_current_riddle[user_id]["state"] == "question":
-            idx = user_current_riddle[user_id]["idx"]
-            hint = riddles[idx].get("hint", "")
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"تلميح: {hint}"))
-            user_current_riddle[user_id]["state"] = "hint"
-        return
-
-    # --- إجابة أو جاوب للغز أو المثل ---
-    if text in ["جاوب", "الإجابة"]:
+    # --- تلميح أو جاوب ---
+    if text in ["تلميح", "لمح", "جاوب", "الإجابة"]:
+        # للغز
         if user_id in user_current_riddle:
             idx = user_current_riddle[user_id]["idx"]
-            answer = riddles[idx].get("answer", "")
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"الإجابة: {answer}"))
-            del user_current_riddle[user_id]
+            if text in ["تلميح", "لمح"]:
+                hint = riddles[idx].get("hint", "")
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"تلميح: {hint}"))
+                user_current_riddle[user_id]["state"] = "hint"
+            else:  # جاوب / الإجابة
+                answer = riddles[idx].get("answer", "")
+                line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"الإجابة: {answer}"))
+                del user_current_riddle[user_id]
             return
+        # للمثل
         if user_id in user_current_proverb:
             idx = user_current_proverb[user_id]["idx"]
             answer = proverbs[idx].get("text", "")
@@ -181,32 +214,7 @@ def handle_message(event):
             del user_current_proverb[user_id]
             return
 
-    # --- باقي الأوامر التقليدية ---
-    if command:
-        if command == "سؤال":
-            file_list = questions_file
-        elif command == "تحدي":
-            file_list = challenges_file
-        elif command == "اعتراف":
-            file_list = confessions_file
-        elif command == "شخصي":
-            file_list = personal_file
-        elif command == "أكثر":
-            file_list = more_file
-        else:
-            file_list = []
-
-        if file_list:
-            index = global_indices[command]
-            msg = file_list[index]
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg))
-            global_indices[command] = (index + 1) % len(file_list)
-            user_indices[command][user_id] = global_indices[command]
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {command} حالياً."))
-        return
-
-    # --- اختيار لعبة ---
+    # --- لعبة الشخصية ---
     if text == "لعبه":
         games_titles = "\n".join([
             "1. أي نوع من القلوب تمتلك",
@@ -223,7 +231,6 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"اختر اللعبة لتبدأ:\n{games_titles}"))
         return
 
-    # --- اختيار رقم لعبة ---
     if text.isdigit():
         num = int(text)
         if 1 <= num <= len(games_list):
@@ -234,7 +241,6 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{first_question['question']}\n{options_text}"))
         return
 
-    # --- متابعة أسئلة اللعبة ---
     if user_id in user_game_state:
         state = user_game_state[user_id]
         answer = text.strip()
