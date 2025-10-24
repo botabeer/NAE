@@ -30,7 +30,7 @@ confessions_file = load_file_lines("confessions.txt")
 personal_file = load_file_lines("personality.txt")
 more_file = load_file_lines("more_file.txt")
 
-# --- تحميل الألغاز من JSON ---
+# --- تحميل الألغاز ---
 try:
     with open("riddles.json", "r", encoding="utf-8") as f:
         riddles = json.load(f)
@@ -56,7 +56,7 @@ games_list = [games_data[key] for key in sorted(games_data.keys())]
 # --- متابعة حالة كل مستخدم ---
 user_game_state = {}  # user_id: {"game_index": 0, "question_index": 0, "answers": []}
 
-# --- تحميل النصوص التفصيلية من ملف خارجي ---
+# --- تحميل النصوص التفصيلية ---
 try:
     with open("detailed_results.json", "r", encoding="utf-8") as f:
         detailed_results = json.load(f)
@@ -100,13 +100,15 @@ def handle_message(event):
     if text == "مساعدة":
         help_text = (
             "الأوامر المتاحة:\n"
-            "- سؤال\n"
-            "- شخصي\n"
-            "- تحدي\n"
-            "- اعتراف\n"
-            "- أكثر\n"
-            "- لعبه\n"
-            "- لغز"
+            "- سؤال: للحصول على سؤال عشوائي.\n"
+            "- شخصي: أسئلة شخصية.\n"
+            "- تحدي: تحديات متنوعة.\n"
+            "- اعتراف: اعترافات ومواقف.\n"
+            "- أكثر: لمعرفة أكثر شخصية (عصبي، هادئ، مرح ...).\n"
+            "- لعبه: لعبة تحليل الشخصية.\n"
+            "- لغز: حل الألغاز.\n"
+            "  * تلميح أو لمح: للحصول على تلميح للغز.\n"
+            "  * جاوب أو الإجابة: لمعرفة حل الغز."
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
         return
