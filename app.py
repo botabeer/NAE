@@ -1,13 +1,22 @@
 import json
 import os
-import typing
+import logging
+from typing import List, Optional, Dict, Union
+from threading import Lock
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
+from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, 
     QuickReply, QuickReplyButton, MessageAction
 )
+
+# === إعداد Logging ===
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -21,90 +30,165 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# === تخزين أسماء المستخدمين ===
-user_names = {}
+# === Locks للتزامن ===
+content_lock = Lock()
+user_lock = Lock()
+
+# === تخزين أسماء المستخدمين مع cache ===
+user_names_cache: Dict[str, str] = {}
+
+class ContentManager:
+    """مدير المحتوى مع معالجة أفضل للأخطاء"""
+    
+    def __init__(self):
+        self.content_files: Dict[str, List[str]] = {}
+        self.more_questions: List[str] = []
+        self.proverbs_list: List[dict] = []
+        self.riddles_list: List[dict] = []
+        self.games_list: List[dict] = []
+        self.detailed_results: Dict = {}
+        self.indices: Dict[str, int] = {}
+        
+    def load_file_lines(self, filename: str) -> List[str]:
+        """تحميل محتوى ملف نصي مع معالجة أفضل للأخطاء"""
+        if not os.path.exists(filename):
+            logger.warning(f"الملف غير موجود: {filename}")
+            return []
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip()]
+                logger.info(f"تم تحميل {len(lines)} سطر من {filename}")
+                return lines
+        except UnicodeDecodeError:
+            logger.error(f"خطأ في ترميز الملف: {filename}")
+            return []
+        except IOError as e:
+            logger.error(f"خطأ في قراءة الملف {filename}: {e}")
+            return []
+    
+    def load_json_file(self, filename: str) -> Union[dict, list]:
+        """تحميل ملف JSON مع معالجة أفضل"""
+        if not os.path.exists(filename):
+            logger.warning(f"الملف غير موجود: {filename}")
+            return [] if filename.endswith("s.json") else {}
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                logger.info(f"تم تحميل {filename}")
+                return data
+        except json.JSONDecodeError as e:
+            logger.error(f"خطأ في بنية JSON في {filename}: {e}")
+            return [] if filename.endswith("s.json") else {}
+        except IOError as e:
+            logger.error(f"خطأ في قراءة {filename}: {e}")
+            return [] if filename.endswith("s.json") else {}
+    
+    def initialize(self):
+        """تحميل جميع الملفات"""
+        # تحميل الملفات النصية
+        self.content_files = {
+            "سؤال": self.load_file_lines("questions.txt"),
+            "تحدي": self.load_file_lines("challenges.txt"),
+            "اعتراف": self.load_file_lines("confessions.txt"),
+            "شخصي": self.load_file_lines("personality.txt"),
+        }
+        
+        # تهيئة المؤشرات
+        self.indices = {key: 0 for key in self.content_files.keys()}
+        self.indices["أكثر"] = 0
+        self.indices["أمثال"] = 0
+        self.indices["لغز"] = 0
+        
+        # تحميل الملفات الأخرى
+        self.more_questions = self.load_file_lines("more_file.txt")
+        self.proverbs_list = self.load_json_file("proverbs.json")
+        self.riddles_list = self.load_json_file("riddles.json")
+        self.detailed_results = self.load_json_file("detailed_results.json")
+        
+        # تحميل الألعاب
+        data = self.load_json_file("personality_games.json")
+        if isinstance(data, dict):
+            self.games_list = [data[key] for key in sorted(data.keys())]
+        else:
+            self.games_list = []
+        
+        logger.info("تم تهيئة جميع الملفات بنجاح")
+    
+    def get_content(self, command: str) -> Optional[str]:
+        """الحصول على محتوى مع thread-safety"""
+        file_list = self.content_files.get(command, [])
+        if not file_list:
+            return None
+        
+        with content_lock:
+            index = self.indices[command]
+            content = file_list[index]
+            self.indices[command] = (index + 1) % len(file_list)
+            return content
+    
+    def get_more_question(self) -> Optional[str]:
+        """الحصول على سؤال 'أكثر' مع thread-safety"""
+        if not self.more_questions:
+            return None
+        
+        with content_lock:
+            index = self.indices["أكثر"]
+            question = self.more_questions[index]
+            self.indices["أكثر"] = (index + 1) % len(self.more_questions)
+            return question
+    
+    def get_proverb(self) -> Optional[dict]:
+        """الحصول على مثل"""
+        if not self.proverbs_list:
+            return None
+        
+        with content_lock:
+            index = self.indices["أمثال"]
+            proverb = self.proverbs_list[index]
+            self.indices["أمثال"] = (index + 1) % len(self.proverbs_list)
+            return proverb
+    
+    def get_riddle(self) -> Optional[dict]:
+        """الحصول على لغز"""
+        if not self.riddles_list:
+            return None
+        
+        with content_lock:
+            index = self.indices["لغز"]
+            riddle = self.riddles_list[index]
+            self.indices["لغز"] = (index + 1) % len(self.riddles_list)
+            return riddle
+
+# تهيئة مدير المحتوى
+content_manager = ContentManager()
+content_manager.initialize()
+
+# === حالات المستخدمين (يفضل استخدام Redis في الإنتاج) ===
+user_game_state: Dict[str, dict] = {}
+user_proverb_state: Dict[str, dict] = {}
+user_riddle_state: Dict[str, dict] = {}
 
 def get_user_name(user_id: str) -> str:
-    """الحصول على اسم المستخدم من LINE"""
-    if user_id in user_names:
-        return user_names[user_id]
+    """الحصول على اسم المستخدم مع caching"""
+    with user_lock:
+        if user_id in user_names_cache:
+            return user_names_cache[user_id]
+    
     try:
         profile = line_bot_api.get_profile(user_id)
-        user_names[user_id] = profile.display_name
-        return profile.display_name
-    except Exception:
+        name = profile.display_name
+        with user_lock:
+            user_names_cache[user_id] = name
+        return name
+    except LineBotApiError as e:
+        logger.error(f"خطأ في الحصول على ملف المستخدم {user_id}: {e}")
+        return "صديقي"
+    except Exception as e:
+        logger.error(f"خطأ غير متوقع: {e}")
         return "صديقي"
 
-# === دالة تحميل الملفات ===
-def load_file_lines(filename: str) -> typing.List[str]:
-    """تحميل محتوى ملف نصي"""
-    if not os.path.exists(filename):
-        print(f"⚠️ الملف غير موجود: {filename}")
-        return []
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            lines = [line.strip() for line in f if line.strip()]
-            print(f"✅ تم تحميل {len(lines)} سطر من {filename}")
-            return lines
-    except Exception as e:
-        print(f"❌ خطأ في تحميل {filename}: {e}")
-        return []
-
-# === دالة تحميل ملفات JSON ===
-def load_json_file(filename: str) -> typing.Union[dict, list]:
-    """تحميل ملف JSON"""
-    if not os.path.exists(filename):
-        print(f"⚠️ الملف غير موجود: {filename}")
-        return [] if filename.endswith("s.json") else {}
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            print(f"✅ تم تحميل {filename}")
-            return data
-    except Exception as e:
-        print(f"❌ خطأ في تحميل {filename}: {e}")
-        return [] if filename.endswith("s.json") else {}
-
-# === تحميل الملفات النصية ===
-content_files = {
-    "سؤال": load_file_lines("questions.txt"),
-    "تحدي": load_file_lines("challenges.txt"),
-    "اعتراف": load_file_lines("confessions.txt"),
-    "شخصي": load_file_lines("personality.txt"),
-}
-
-# === تحميل أسئلة "أكثر" ===
-more_questions = load_file_lines("more_file.txt")
-
-# === تحميل الأمثال والألغاز ===
-proverbs_list = load_json_file("proverbs.json")
-riddles_list = load_json_file("riddles.json")
-
-# === تحميل الألعاب ===
-def load_games():
-    """تحميل بيانات الألعاب من ملف JSON"""
-    data = load_json_file("personality_games.json")
-    if isinstance(data, dict):
-        return [data[key] for key in sorted(data.keys())]
-    return []
-
-games_list = load_games()
-
-# === تحميل نتائج الألعاب ===
-detailed_results = load_json_file("detailed_results.json")
-
-# === حالات المستخدمين ===
-user_game_state = {}
-user_proverb_state = {}
-user_riddle_state = {}
-user_content_indices = {key: {} for key in content_files.keys()}
-global_content_indices = {key: 0 for key in content_files.keys()}
-more_questions_index = 0
-proverbs_index = 0
-riddles_index = 0
-
 # === خريطة الأوامر ===
-commands_map = {
+COMMANDS_MAP = {
     "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة", "اسأل"],
     "تحدي": ["تحدي", "تحديات", "تحد"],
     "اعتراف": ["اعتراف", "اعترافات"],
@@ -114,16 +198,15 @@ commands_map = {
     "لغز": ["لغز", "الغاز", "ألغاز"]
 }
 
-def find_command(text: str) -> typing.Optional[str]:
+def find_command(text: str) -> Optional[str]:
     """البحث عن الأمر المطابق"""
     text_lower = text.lower().strip()
-    for key, variants in commands_map.items():
+    for key, variants in COMMANDS_MAP.items():
         if text_lower in [v.lower() for v in variants]:
             return key
     return None
 
-# === القائمة الرئيسية ===
-def create_main_menu():
+def create_main_menu() -> QuickReply:
     """إنشاء القائمة السريعة"""
     return QuickReply(items=[
         QuickReplyButton(action=MessageAction(label="❓ سؤال", text="سؤال")),
@@ -136,59 +219,9 @@ def create_main_menu():
         QuickReplyButton(action=MessageAction(label="🧩 لغز", text="لغز")),
     ])
 
-# === دوال المحتوى ===
-def get_content(command: str, user_id: str) -> str:
-    """الحصول على محتوى عادي"""
-    file_list = content_files.get(command, [])
-    if not file_list:
-        return f"⚠️ لا توجد بيانات متاحة في قسم '{command}' حالياً."
-    
-    index = global_content_indices[command]
-    content = file_list[index]
-    global_content_indices[command] = (index + 1) % len(file_list)
-    user_content_indices[command][user_id] = global_content_indices[command]
-    return content
-
-def get_more_question(user_id: str) -> str:
-    """الحصول على سؤال 'أكثر'"""
-    global more_questions_index
-    if not more_questions:
-        return "⚠️ لا توجد أسئلة متاحة في قسم 'أكثر'."
-    
-    user_name = get_user_name(user_id)
-    question = more_questions[more_questions_index]
-    more_questions_index = (more_questions_index + 1) % len(more_questions)
-    return f"💭 {question}\n\n{user_name}"
-
-def get_proverb(user_id: str) -> str:
-    """الحصول على مثل"""
-    global proverbs_index
-    if not proverbs_list:
-        return "⚠️ لا توجد أمثال متاحة حالياً."
-    
-    proverb = proverbs_list[proverbs_index]
-    user_proverb_state[user_id] = proverb
-    proverbs_index = (proverbs_index + 1) % len(proverbs_list)
-    
-    user_name = get_user_name(user_id)
-    return f"📜 المثل:\n{proverb['question']}\n\n{user_name}\n\n💡 اكتب 'جاوب' لمعرفة المعنى"
-
-def get_riddle(user_id: str) -> str:
-    """الحصول على لغز"""
-    global riddles_index
-    if not riddles_list:
-        return "⚠️ لا توجد ألغاز متاحة حالياً."
-    
-    riddle = riddles_list[riddles_index]
-    user_riddle_state[user_id] = riddle
-    riddles_index = (riddles_index + 1) % len(riddles_list)
-    
-    user_name = get_user_name(user_id)
-    return f"🧩 اللغز:\n{riddle['question']}\n\n{user_name}\n\n💡 اكتب 'لمح' للتلميح أو 'جاوب' للإجابة"
-
 def get_games_list() -> str:
     """قائمة الألعاب المتاحة"""
-    if not games_list:
+    if not content_manager.games_list:
         return "⚠️ لا توجد ألعاب متاحة حالياً."
     
     titles = [
@@ -209,7 +242,7 @@ def get_games_list() -> str:
     ]
     return "\n".join(titles)
 
-def calculate_result(answers: typing.List[str], game_index: int) -> str:
+def calculate_result(answers: List[str], game_index: int) -> str:
     """حساب نتيجة اللعبة"""
     count = {"أ": 0, "ب": 0, "ج": 0}
     for ans in answers:
@@ -218,7 +251,7 @@ def calculate_result(answers: typing.List[str], game_index: int) -> str:
     
     most_common = max(count, key=count.get)
     game_key = f"لعبة{game_index + 1}"
-    result_text = detailed_results.get(game_key, {}).get(
+    result_text = content_manager.detailed_results.get(game_key, {}).get(
         most_common,
         f"✅ إجابتك الأكثر: {most_common}\n\n🎯 نتيجتك تعكس شخصية فريدة!"
     )
@@ -232,15 +265,25 @@ def calculate_result(answers: typing.List[str], game_index: int) -> str:
 def home():
     return "✅ البوت يعمل بنجاح!", 200
 
+@app.route("/health", methods=["GET"])
+def health_check():
+    """نقطة فحص صحة التطبيق"""
+    return {"status": "healthy", "service": "line-bot"}, 200
+
 @app.route("/callback", methods=["POST"])
 def callback():
     signature = request.headers.get("X-Line-Signature", "")
     body = request.get_data(as_text=True)
+    
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        print("❌ توقيع غير صالح")
+        logger.error("توقيع غير صالح")
         abort(400)
+    except Exception as e:
+        logger.error(f"خطأ في معالجة الطلب: {e}")
+        abort(500)
+    
     return "OK"
 
 # === معالج الرسائل ===
@@ -250,154 +293,216 @@ def handle_message(event):
     text = event.message.text.strip()
     text_lower = text.lower()
     
-    # === أمر المساعدة ===
-    if text_lower in ["مساعدة", "help", "بداية", "start"]:
-        user_name = get_user_name(user_id)
-        welcome_msg = (
-            f"👋 أهلاً {user_name}!\n\n"
-            "📋 الأقسام المتاحة:\n"
-            "❓ سؤال - أسئلة ممتعة\n"
-            "🎯 تحدي - تحديات مثيرة\n"
-            "💬 اعتراف - اعترافات صادقة\n"
-            "👤 شخصي - أسئلة شخصية\n"
-            "✨ أكثر - أسئلة 'أكثر واحد'\n"
-            "🎮 لعبة - ألعاب تحليل الشخصية\n"
-            "📜 أمثال - أمثال شعبية\n"
-            "🧩 لغز - ألغاز مسلية\n\n"
-            "🔽 اختر من القائمة:"
-        )
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=welcome_msg, quick_reply=create_main_menu())
-        )
-        return
+    try:
+        # === أمر المساعدة ===
+        if text_lower in ["مساعدة", "help", "بداية", "start"]:
+            handle_help_command(event, user_id)
+            return
+        
+        # === معالجة الأوامر الأساسية ===
+        command = find_command(text)
+        if command:
+            handle_content_command(event, user_id, command)
+            return
+        
+        # === معالجة إجابات الأمثال والألغاز ===
+        if text_lower in ["جاوب", "الجواب", "الاجابة", "اجابة"]:
+            handle_answer_command(event, user_id)
+            return
+        
+        # === معالجة التلميح ===
+        if text_lower in ["لمح", "تلميح", "hint"]:
+            handle_hint_command(event, user_id)
+            return
+        
+        # === معالجة طلب الألعاب ===
+        if text_lower in ["لعبه", "لعبة", "العاب", "ألعاب", "game"]:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=get_games_list())
+            )
+            return
+        
+        # === معالجة اختيار اللعبة ===
+        if text.isdigit():
+            handle_game_selection(event, user_id, int(text))
+            return
+        
+        # === معالجة إجابات اللعبة ===
+        if user_id in user_game_state:
+            handle_game_answer(event, user_id, text)
+            return
+        
+        # رسالة افتراضية
+        send_default_message(event)
+        
+    except Exception as e:
+        logger.error(f"خطأ في معالجة الرسالة: {e}", exc_info=True)
+        try:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="⚠️ حدث خطأ، يرجى المحاولة مرة أخرى")
+            )
+        except:
+            pass
+
+def handle_help_command(event, user_id: str):
+    """معالجة أمر المساعدة"""
+    user_name = get_user_name(user_id)
+    welcome_msg = (
+        f"👋 أهلاً {user_name}!\n\n"
+        "📋 الأقسام المتاحة:\n"
+        "❓ سؤال - أسئلة ممتعة\n"
+        "🎯 تحدي - تحديات مثيرة\n"
+        "💬 اعتراف - اعترافات صادقة\n"
+        "👤 شخصي - أسئلة شخصية\n"
+        "✨ أكثر - أسئلة 'أكثر واحد'\n"
+        "🎮 لعبة - ألعاب تحليل الشخصية\n"
+        "📜 أمثال - أمثال شعبية\n"
+        "🧩 لغز - ألغاز مسلية\n\n"
+        "🔽 اختر من القائمة:"
+    )
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=welcome_msg, quick_reply=create_main_menu())
+    )
+
+def handle_content_command(event, user_id: str, command: str):
+    """معالجة أوامر المحتوى"""
+    user_name = get_user_name(user_id)
     
-    # === معالجة الأوامر الأساسية ===
-    command = find_command(text)
-    if command:
-        if command == "أمثال":
-            content = get_proverb(user_id)
-        elif command == "لغز":
-            content = get_riddle(user_id)
-        elif command == "أكثر":
-            content = get_more_question(user_id)
+    if command == "أمثال":
+        proverb = content_manager.get_proverb()
+        if not proverb:
+            content = "⚠️ لا توجد أمثال متاحة حالياً."
         else:
-            content = get_content(command, user_id)
-            user_name = get_user_name(user_id)
+            user_proverb_state[user_id] = proverb
+            content = f"📜 المثل:\n{proverb['question']}\n\n{user_name}\n\n💡 اكتب 'جاوب' لمعرفة المعنى"
+    
+    elif command == "لغز":
+        riddle = content_manager.get_riddle()
+        if not riddle:
+            content = "⚠️ لا توجد ألغاز متاحة حالياً."
+        else:
+            user_riddle_state[user_id] = riddle
+            content = f"🧩 اللغز:\n{riddle['question']}\n\n{user_name}\n\n💡 اكتب 'لمح' للتلميح أو 'جاوب' للإجابة"
+    
+    elif command == "أكثر":
+        question = content_manager.get_more_question()
+        if not question:
+            content = "⚠️ لا توجد أسئلة متاحة في قسم 'أكثر'."
+        else:
+            content = f"💭 {question}\n\n{user_name}"
+    
+    else:
+        content = content_manager.get_content(command)
+        if not content:
+            content = f"⚠️ لا توجد بيانات متاحة في قسم '{command}' حالياً."
+        else:
             content = f"{user_name}\n\n{content}"
+    
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=content, quick_reply=create_main_menu())
+    )
+
+def handle_answer_command(event, user_id: str):
+    """معالجة طلب الإجابة"""
+    user_name = get_user_name(user_id)
+    
+    if user_id in user_proverb_state:
+        proverb = user_proverb_state.pop(user_id)
+        msg = f"✅ معنى المثل:\n{proverb['answer']}\n\n{user_name}"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=msg, quick_reply=create_main_menu())
+        )
+    elif user_id in user_riddle_state:
+        riddle = user_riddle_state.pop(user_id)
+        msg = f"✅ الإجابة:\n{riddle['answer']}\n\n{user_name}"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=msg, quick_reply=create_main_menu())
+        )
+
+def handle_hint_command(event, user_id: str):
+    """معالجة طلب التلميح"""
+    if user_id in user_riddle_state:
+        riddle = user_riddle_state[user_id]
+        hint = riddle.get('hint', 'لا يوجد تلميح')
+        user_name = get_user_name(user_id)
+        msg = f"💡 التلميح:\n{hint}\n\n{user_name}"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=msg)
+        )
+
+def handle_game_selection(event, user_id: str, num: int):
+    """معالجة اختيار اللعبة"""
+    if 1 <= num <= len(content_manager.games_list):
+        game_index = num - 1
+        user_game_state[user_id] = {
+            "game_index": game_index,
+            "question_index": 0,
+            "answers": []
+        }
+        
+        user_name = get_user_name(user_id)
+        game = content_manager.games_list[game_index]
+        first_q = game["questions"][0]
+        options = "\n".join([f"{k}. {v}" for k, v in first_q["options"].items()])
+        
+        msg = f"🎮 {game.get('title', f'اللعبة {num}')}\n"
+        msg += f"اللاعب: {user_name}\n\n"
+        msg += f"❓ {first_q['question']}\n\n{options}\n\n📝 أرسل: أ، ب، ج"
         
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text=content, quick_reply=create_main_menu())
+            TextSendMessage(text=msg)
         )
-        return
 
-    # === باقي المعالجة تبقى كما هي ===
-    if text_lower in ["جاوب", "الجواب", "الاجابة", "اجابة"]:
-        if user_id in user_proverb_state:
-            proverb = user_proverb_state.pop(user_id)
-            user_name = get_user_name(user_id)
-            msg = f"✅ معنى المثل:\n{proverb['answer']}\n\n{user_name}"
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=msg, quick_reply=create_main_menu())
-            )
-            return
-        if user_id in user_riddle_state:
-            riddle = user_riddle_state.pop(user_id)
-            user_name = get_user_name(user_id)
-            msg = f"✅ الإجابة:\n{riddle['answer']}\n\n{user_name}"
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=msg, quick_reply=create_main_menu())
-            )
-            return
-        return
-
-    if text_lower in ["لمح", "تلميح", "hint"]:
-        if user_id in user_riddle_state:
-            riddle = user_riddle_state[user_id]
-            hint = riddle.get('hint', 'لا يوجد تلميح')
-            user_name = get_user_name(user_id)
-            msg = f"💡 التلميح:\n{hint}\n\n{user_name}"
+def handle_game_answer(event, user_id: str, text: str):
+    """معالجة إجابة اللعبة"""
+    state = user_game_state[user_id]
+    answer_map = {"1": "أ", "2": "ب", "3": "ج", "a": "أ", "b": "ب", "c": "ج"}
+    answer = answer_map.get(text.lower(), text)
+    
+    if answer in ["أ", "ب", "ج"]:
+        state["answers"].append(answer)
+        game = content_manager.games_list[state["game_index"]]
+        state["question_index"] += 1
+        
+        if state["question_index"] < len(game["questions"]):
+            q = game["questions"][state["question_index"]]
+            options = "\n".join([f"{k}. {v}" for k, v in q["options"].items()])
+            progress = f"[{state['question_index'] + 1}/{len(game['questions'])}]"
+            msg = f"{progress} ❓ {q['question']}\n\n{options}\n\n📝 أرسل: أ، ب، ج"
+            
             line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(text=msg)
             )
-            return
-        return
-
-    if text_lower in ["لعبه", "لعبة", "العاب", "ألعاب", "game"]:
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=get_games_list())
-        )
-        return
-
-    if text.isdigit():
-        num = int(text)
-        if 1 <= num <= len(games_list):
-            game_index = num - 1
-            user_game_state[user_id] = {
-                "game_index": game_index,
-                "question_index": 0,
-                "answers": []
-            }
-            
+        else:
             user_name = get_user_name(user_id)
-            first_q = games_list[game_index]["questions"][0]
-            options = "\n".join([f"{k}. {v}" for k, v in first_q["options"].items()])
-            msg = f"🎮 {games_list[game_index].get('title', f'اللعبة {num}')}\n"
-            msg += f"اللاعب: {user_name}\n\n"
-            msg += f"❓ {first_q['question']}\n\n{options}\n\n📝 أرسل: أ، ب، ج"
+            result = calculate_result(state["answers"], state["game_index"])
+            final_msg = f" انتهت اللعبة!\n{user_name}\n\n{result}\n\n💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
             
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text=msg)
+                TextSendMessage(text=final_msg, quick_reply=create_main_menu())
             )
-            return
-        return
+            del user_game_state[user_id]
 
-    if user_id in user_game_state:
-        state = user_game_state[user_id]
-        answer_map = {"1": "أ", "2": "ب", "3": "ج", "a": "أ", "b": "ب", "c": "ج"}
-        answer = answer_map.get(text_lower, text)
-        
-        if answer in ["أ", "ب", "ج"]:
-            state["answers"].append(answer)
-            game = games_list[state["game_index"]]
-            state["question_index"] += 1
-            
-            if state["question_index"] < len(game["questions"]):
-                q = game["questions"][state["question_index"]]
-                options = "\n".join([f"{k}. {v}" for k, v in q["options"].items()])
-                progress = f"[{state['question_index'] + 1}/{len(game['questions'])}]"
-                msg = f"{progress} ❓ {q['question']}\n\n{options}\n\n📝 أرسل: أ، ب، ج"
-                
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text=msg)
-                )
-            else:
-                user_name = get_user_name(user_id)
-                result = calculate_result(state["answers"], state["game_index"])
-                final_msg = f"🎉 انتهت اللعبة!\n"
-                final_msg += f"{user_name}\n\n"
-                final_msg += f"{result}\n\n"
-                final_msg += f"💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
-                
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text=final_msg, quick_reply=create_main_menu())
-                )
-                del user_game_state[user_id]
-            return
-        return
-
-    return
+def send_default_message(event):
+    """إرسال رسالة افتراضية"""
+    msg = "⚠️ لم أفهم طلبك. أرسل 'مساعدة' لعرض الأوامر المتاحة."
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=msg, quick_reply=create_main_menu())
+    )
 
 # === تشغيل التطبيق ===
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    print(f"🚀 البوت يعمل على المنفذ {port}")
+    logger.info(f"البوت يعمل على المنفذ {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
