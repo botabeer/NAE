@@ -32,10 +32,6 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
 # === Locks للتزامن ===
 content_lock = Lock()
-user_lock = Lock()
-
-# === تخزين أسماء المستخدمين مع cache ===
-user_names_cache: Dict[str, str] = {}
 
 class ContentManager:
     """مدير المحتوى مع معالجة أفضل للأخطاء"""
@@ -168,25 +164,6 @@ user_game_state: Dict[str, dict] = {}
 user_proverb_state: Dict[str, dict] = {}
 user_riddle_state: Dict[str, dict] = {}
 
-def get_user_name(user_id: str) -> str:
-    """الحصول على اسم المستخدم مع caching"""
-    with user_lock:
-        if user_id in user_names_cache:
-            return user_names_cache[user_id]
-    
-    try:
-        profile = line_bot_api.get_profile(user_id)
-        name = profile.display_name
-        with user_lock:
-            user_names_cache[user_id] = name
-        return name
-    except LineBotApiError as e:
-        logger.error(f"خطأ في الحصول على ملف المستخدم {user_id}: {e}")
-        return "صديقي"
-    except Exception as e:
-        logger.error(f"خطأ غير متوقع: {e}")
-        return "صديقي"
-
 # === خريطة الأوامر ===
 COMMANDS_MAP = {
     "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة", "اسأل"],
@@ -296,13 +273,13 @@ def handle_message(event):
     try:
         # === أمر المساعدة ===
         if text_lower in ["مساعدة", "help", "بداية", "start"]:
-            handle_help_command(event, user_id)
+            handle_help_command(event)
             return
         
         # === معالجة الأوامر الأساسية ===
         command = find_command(text)
         if command:
-            handle_content_command(event, user_id, command)
+            handle_content_command(event, command)
             return
         
         # === معالجة إجابات الأمثال والألغاز ===
@@ -346,11 +323,10 @@ def handle_message(event):
         except:
             pass
 
-def handle_help_command(event, user_id: str):
+def handle_help_command(event):
     """معالجة أمر المساعدة"""
-    user_name = get_user_name(user_id)
     welcome_msg = (
-        f"👋 أهلاً {user_name}!\n\n"
+        "👋 أهلاً بك!\n\n"
         "📋 الأقسام المتاحة:\n"
         "❓ سؤال - أسئلة ممتعة\n"
         "🎯 تحدي - تحديات مثيرة\n"
@@ -367,39 +343,35 @@ def handle_help_command(event, user_id: str):
         TextSendMessage(text=welcome_msg, quick_reply=create_main_menu())
     )
 
-def handle_content_command(event, user_id: str, command: str):
+def handle_content_command(event, command: str):
     """معالجة أوامر المحتوى"""
-    user_name = get_user_name(user_id)
-    
     if command == "أمثال":
         proverb = content_manager.get_proverb()
         if not proverb:
             content = "⚠️ لا توجد أمثال متاحة حالياً."
         else:
-            user_proverb_state[user_id] = proverb
-            content = f"📜 المثل:\n{proverb['question']}\n\n{user_name}\n\n💡 اكتب 'جاوب' لمعرفة المعنى"
+            user_proverb_state[event.source.user_id] = proverb
+            content = f"📜 المثل:\n{proverb['question']}\n\n💡 اكتب 'جاوب' لمعرفة المعنى"
     
     elif command == "لغز":
         riddle = content_manager.get_riddle()
         if not riddle:
             content = "⚠️ لا توجد ألغاز متاحة حالياً."
         else:
-            user_riddle_state[user_id] = riddle
-            content = f"🧩 اللغز:\n{riddle['question']}\n\n{user_name}\n\n💡 اكتب 'لمح' للتلميح أو 'جاوب' للإجابة"
+            user_riddle_state[event.source.user_id] = riddle
+            content = f"🧩 اللغز:\n{riddle['question']}\n\n💡 اكتب 'لمح' للتلميح أو 'جاوب' للإجابة"
     
     elif command == "أكثر":
         question = content_manager.get_more_question()
         if not question:
             content = "⚠️ لا توجد أسئلة متاحة في قسم 'أكثر'."
         else:
-            content = f"💭 {question}\n\n{user_name}"
+            content = f"💭 {question}"
     
     else:
         content = content_manager.get_content(command)
         if not content:
             content = f"⚠️ لا توجد بيانات متاحة في قسم '{command}' حالياً."
-        else:
-            content = f"{user_name}\n\n{content}"
     
     line_bot_api.reply_message(
         event.reply_token,
@@ -408,18 +380,16 @@ def handle_content_command(event, user_id: str, command: str):
 
 def handle_answer_command(event, user_id: str):
     """معالجة طلب الإجابة"""
-    user_name = get_user_name(user_id)
-    
     if user_id in user_proverb_state:
         proverb = user_proverb_state.pop(user_id)
-        msg = f"✅ معنى المثل:\n{proverb['answer']}\n\n{user_name}"
+        msg = f"✅ معنى المثل:\n{proverb['answer']}"
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=msg, quick_reply=create_main_menu())
         )
     elif user_id in user_riddle_state:
         riddle = user_riddle_state.pop(user_id)
-        msg = f"✅ الإجابة:\n{riddle['answer']}\n\n{user_name}"
+        msg = f"✅ الإجابة:\n{riddle['answer']}"
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=msg, quick_reply=create_main_menu())
@@ -430,8 +400,7 @@ def handle_hint_command(event, user_id: str):
     if user_id in user_riddle_state:
         riddle = user_riddle_state[user_id]
         hint = riddle.get('hint', 'لا يوجد تلميح')
-        user_name = get_user_name(user_id)
-        msg = f"💡 التلميح:\n{hint}\n\n{user_name}"
+        msg = f"💡 التلميح:\n{hint}"
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=msg)
@@ -447,13 +416,11 @@ def handle_game_selection(event, user_id: str, num: int):
             "answers": []
         }
         
-        user_name = get_user_name(user_id)
         game = content_manager.games_list[game_index]
         first_q = game["questions"][0]
         options = "\n".join([f"{k}. {v}" for k, v in first_q["options"].items()])
         
-        msg = f"🎮 {game.get('title', f'اللعبة {num}')}\n"
-        msg += f"اللاعب: {user_name}\n\n"
+        msg = f"🎮 {game.get('title', f'اللعبة {num}')}\n\n"
         msg += f"❓ {first_q['question']}\n\n{options}\n\n📝 أرسل: أ، ب، ج"
         
         line_bot_api.reply_message(
@@ -483,9 +450,8 @@ def handle_game_answer(event, user_id: str, text: str):
                 TextSendMessage(text=msg)
             )
         else:
-            user_name = get_user_name(user_id)
             result = calculate_result(state["answers"], state["game_index"])
-            final_msg = f" انتهت اللعبة!\n{user_name}\n\n{result}\n\n💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
+            final_msg = f"🎉 انتهت اللعبة!\n\n{result}\n\n💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
             
             line_bot_api.reply_message(
                 event.reply_token,
