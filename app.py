@@ -320,8 +320,8 @@ def handle_message(event):
             handle_game_answer(event, user_id, text)
             return
         
-        # رسالة افتراضية
-        send_default_message(event)
+        # تجاهل أي رسائل أخرى
+        return
         
     except Exception as e:
         logger.error(f"خطأ في معالجة الرسالة: {e}", exc_info=True)
@@ -336,7 +336,7 @@ def handle_message(event):
 def handle_help_command(event):
     """معالجة أمر المساعدة"""
     welcome_msg = (
-        "🖤 أهلاً بك!\n\n"
+        "👋 أهلاً بك!\n\n"
         "📋 الأقسام المتاحة:\n"
         "❓ سؤال - أسئلة ممتعة\n"
         "🎯 تحدي - تحديات مثيرة\n"
@@ -470,13 +470,7 @@ def handle_game_answer(event, user_id: str, text: str):
             )
             del user_game_state[user_id]
 
-def send_default_message(event):
-    """إرسال رسالة افتراضية"""
-    msg = "⚠️ لم أفهم طلبك. أرسل 'مساعدة' لعرض الأوامر المتاحة."
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=msg, quick_reply=create_main_menu())
-    )
+
 
 # === تشغيل التطبيق ===
 if __name__ == "__main__":
