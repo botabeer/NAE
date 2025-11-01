@@ -2,7 +2,7 @@ import json
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, QuickReply, QuickReplyButton, MessageAction
 import os, typing
 
 app = Flask(__name__)
@@ -187,11 +187,10 @@ detailed_results = {
     }
 }
 
-# --- مؤشرات لكل مستخدم للأوامر الأخرى ---
+# --- مؤشرات المستخدمين ---
 user_indices = {"سؤال":{}, "تحدي":{}, "اعتراف":{}, "شخصي":{}, "أكثر":{}}
 global_indices = {"سؤال":0, "تحدي":0, "اعتراف":0, "شخصي":0, "أكثر":0}
 
-# --- قاموس المرادفات لكل أمر ---
 commands_map = {
     "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة"],
     "تحدي": ["تحدي", "تحديات", "تحد"],
@@ -221,19 +220,18 @@ def handle_message(event):
 
     # --- مساعدة ---
     if text == "مساعدة":
-        help_text = (
-            "الأوامر المتاحة:\n"
-            "- سؤال\n"
-            "- شخصي\n"
-            "- تحدي\n"
-            "- اعتراف\n"
-            "- أكثر\n"
-            "- لعبه"
-        )
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=help_text))
+        quick_reply = QuickReply(items=[
+            QuickReplyButton(action=MessageAction(label="❓ سؤال", text="سؤال")),
+            QuickReplyButton(action=MessageAction(label="🎯 تحدي", text="تحدي")),
+            QuickReplyButton(action=MessageAction(label="💬 اعتراف", text="اعتراف")),
+            QuickReplyButton(action=MessageAction(label="🧠 شخصي", text="شخصي")),
+            QuickReplyButton(action=MessageAction(label="✨ أكثر", text="أكثر")),
+            QuickReplyButton(action=MessageAction(label="🎮 لعبة", text="لعبه")),
+        ])
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="", quick_reply=quick_reply))
         return
 
-    # --- أوامر الألعاب الأخرى ---
+    # --- باقي الكود (الأوامر والألعاب) كما هو ---
     command = None
     for key, variants in commands_map.items():
         if text in [v.lower() for v in variants]:
@@ -241,16 +239,13 @@ def handle_message(event):
             break
 
     if command:
-        if command == "سؤال":
-            file_list = questions_file
-        elif command == "تحدي":
-            file_list = challenges_file
-        elif command == "اعتراف":
-            file_list = confessions_file
-        elif command == "شخصي":
-            file_list = personal_file
-        elif command == "أكثر":
-            file_list = more_file
+        file_list = {
+            "سؤال": questions_file,
+            "تحدي": challenges_file,
+            "اعتراف": confessions_file,
+            "شخصي": personal_file,
+            "أكثر": more_file,
+        }.get(command, [])
 
         if file_list:
             index = global_indices[command]
@@ -262,19 +257,19 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"لا توجد بيانات في {command} حالياً."))
         return
 
-    # --- بدء لعبة الشخصية ---
+    # --- بدء لعبة ---
     if text == "لعبه":
         games_titles = "\n".join([
             "1. أي نوع من القلوب تمتلك",
-            "2. الأحلام والطموحات الشخصية",
-            "3. السعادة الداخلية",
-            "4. القوة الشخصية",
-            "5. الحب والعلاقات",
-            "6. السلام الداخلي",
-            "7. الطموح والنجاح",
-            "8. التفكير الإيجابي",
-            "9. الصداقة والعلاقات الاجتماعية",
-            "10. القرارات الحياتية"
+            "2. القوة الشخصية",
+            "3. الحب والعلاقات",
+            "4. السلام الداخلي",
+            "5. الطموح والنجاح",
+            "6. التفكير الإيجابي",
+            "7. الصداقة والعلاقات الاجتماعية",
+            "8. القرارات الحياتية",
+            "9. الأحلام والطموحات",
+            "10. الراحة النفسية"
         ])
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"اختر اللعبة لتبدأ:\n{games_titles}"))
         return
@@ -290,7 +285,7 @@ def handle_message(event):
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{first_question['question']}\n{options_text}"))
         return
 
-    # --- الرد على سؤال داخل اللعبة ---
+    # --- الرد داخل اللعبة ---
     if user_id in user_game_state:
         state = user_game_state[user_id]
         answer = text.strip()
@@ -307,7 +302,6 @@ def handle_message(event):
                 options_text = "\n".join([f"{k}: {v}" for k, v in q["options"].items()])
                 line_bot_api.reply_message(event.reply_token, TextSendMessage(text=f"{q['question']}\n{options_text}"))
             else:
-                # نهاية اللعبة، عرض النتيجة المفصلة
                 a_count = {"أ": 0, "ب": 0, "ج": 0}
                 for ans in state["answers"]:
                     if ans in a_count:
