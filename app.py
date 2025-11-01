@@ -280,7 +280,7 @@ def handle_message(event):
         if text_lower in ["مساعدة", "help", "بداية", "start"]:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="اختر:", quick_reply=create_main_menu())
+                TextSendMessage(text="اختر من القائمة أدناه:", quick_reply=create_main_menu())
             )
             return
         
