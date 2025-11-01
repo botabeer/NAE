@@ -291,10 +291,9 @@ def handle_message(event):
             TextSendMessage(text=content, quick_reply=create_main_menu())
         )
         return
-    
-    # === معالجة إجابات الأمثال والألغاز ===
+
+    # === باقي المعالجة تبقى كما هي ===
     if text_lower in ["جاوب", "الجواب", "الاجابة", "اجابة"]:
-        # التحقق من الأمثال أولاً
         if user_id in user_proverb_state:
             proverb = user_proverb_state.pop(user_id)
             user_name = get_user_name(user_id)
@@ -304,8 +303,6 @@ def handle_message(event):
                 TextSendMessage(text=msg, quick_reply=create_main_menu())
             )
             return
-        
-        # التحقق من الألغاز
         if user_id in user_riddle_state:
             riddle = user_riddle_state.pop(user_id)
             user_name = get_user_name(user_id)
@@ -315,10 +312,8 @@ def handle_message(event):
                 TextSendMessage(text=msg, quick_reply=create_main_menu())
             )
             return
-        
         return
-    
-    # === معالجة التلميح ===
+
     if text_lower in ["لمح", "تلميح", "hint"]:
         if user_id in user_riddle_state:
             riddle = user_riddle_state[user_id]
@@ -331,16 +326,14 @@ def handle_message(event):
             )
             return
         return
-    
-    # === بدء لعبة ===
+
     if text_lower in ["لعبه", "لعبة", "العاب", "ألعاب", "game"]:
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=get_games_list())
         )
         return
-    
-    # === اختيار رقم اللعبة ===
+
     if text.isdigit():
         num = int(text)
         if 1 <= num <= len(games_list):
@@ -364,8 +357,7 @@ def handle_message(event):
             )
             return
         return
-    
-    # === معالجة إجابات اللعبة ===
+
     if user_id in user_game_state:
         state = user_game_state[user_id]
         answer_map = {"1": "أ", "2": "ب", "3": "ج", "a": "أ", "b": "ب", "c": "ج"}
@@ -389,7 +381,7 @@ def handle_message(event):
             else:
                 user_name = get_user_name(user_id)
                 result = calculate_result(state["answers"], state["game_index"])
-                final_msg = f" انتهت اللعبة!\n"
+                final_msg = f"🎉 انتهت اللعبة!\n"
                 final_msg += f"{user_name}\n\n"
                 final_msg += f"{result}\n\n"
                 final_msg += f"💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
@@ -401,7 +393,7 @@ def handle_message(event):
                 del user_game_state[user_id]
             return
         return
-    
+
     return
 
 # === تشغيل التطبيق ===
