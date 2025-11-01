@@ -208,22 +208,20 @@ def get_games_list() -> str:
     if not content_manager.games_list:
         return "⚠️ لا توجد ألعاب متاحة حالياً."
     
-    titles = [
-        "🎮 الألعاب المتاحة:",
-        "",
-        "1️⃣ أي نوع من القلوب تمتلك",
-        "2️⃣ القوة الشخصية",
-        "3️⃣ الحب والعلاقات",
-        "4️⃣ السلام الداخلي",
-        "5️⃣ الطموح والنجاح",
-        "6️⃣ التفكير الإيجابي",
-        "7️⃣ الصداقة والعلاقات",
-        "8️⃣ القرارات الحياتية",
-        "9️⃣ الأحلام والطموحات",
-        "🔟 الراحة النفسية",
-        "",
-        "📌 أرسل رقم اللعبة (1-10)"
-    ]
+    # بناء القائمة ديناميكياً بناءً على عدد الألعاب الموجودة
+    titles = ["🎮 الألعاب المتاحة:", ""]
+    
+    # الرموز للأرقام
+    number_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+    
+    for i, game in enumerate(content_manager.games_list):
+        emoji = number_emojis[i] if i < len(number_emojis) else f"{i+1}️⃣"
+        game_title = game.get('title', f'اللعبة {i+1}')
+        titles.append(f"{emoji} {game_title}")
+    
+    titles.append("")
+    titles.append(f"📌 أرسل رقم اللعبة (1-{len(content_manager.games_list)})")
+    
     return "\n".join(titles)
 
 def calculate_result(answers: List[str], game_index: int) -> str:
@@ -282,7 +280,7 @@ def handle_message(event):
         if text_lower in ["مساعدة", "help", "بداية", "start"]:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="‎", quick_reply=create_main_menu())
+                TextSendMessage(text="اختر:", quick_reply=create_main_menu())
             )
             return
         
@@ -358,7 +356,7 @@ def handle_content_command(event, command: str):
         if not question:
             content = "⚠️ لا توجد أسئلة متاحة في قسم 'أكثر'."
         else:
-            content = f"💭 {question}"
+            content = question
     
     else:
         content = content_manager.get_content(command)
