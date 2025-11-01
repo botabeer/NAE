@@ -280,7 +280,10 @@ def handle_message(event):
     try:
         # === أمر المساعدة ===
         if text_lower in ["مساعدة", "help", "بداية", "start"]:
-            handle_help_command(event)
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="‎", quick_reply=create_main_menu())
+            )
             return
         
         # === معالجة الأوامر الأساسية ===
@@ -330,25 +333,7 @@ def handle_message(event):
         except:
             pass
 
-def handle_help_command(event):
-    """معالجة أمر المساعدة"""
-    welcome_msg = (
-        "🖤 أهلاً بك!\n\n"
-        "📋 الأقسام المتاحة:\n"
-        "❓ سؤال - أسئلة ممتعة\n"
-        "🎯 تحدي - تحديات مثيرة\n"
-        "💬 اعتراف - اعترافات صادقة\n"
-        "✨ أكثر - أسئلة 'أكثر واحد'\n"
-        "🎮 لعبة - ألعاب تحليل الشخصية\n"
-        "📜 أمثال - أمثال شعبية\n"
-        "🧩 لغز - ألغاز مسلية\n\n"
-        "🎲 الاختيار عشوائي ولا يتكرر!\n\n"
-        "🔽 اختر من القائمة:"
-    )
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=welcome_msg, quick_reply=create_main_menu())
-    )
+
 
 def handle_content_command(event, command: str):
     """معالجة أوامر المحتوى"""
