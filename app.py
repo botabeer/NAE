@@ -89,7 +89,6 @@ class ContentManager:
             "سؤال": self.load_file_lines("questions.txt"),
             "تحدي": self.load_file_lines("challenges.txt"),
             "اعتراف": self.load_file_lines("confessions.txt"),
-            "شخصي": self.load_file_lines("personality.txt"),
         }
         
         # تهيئة قوائم التتبع
@@ -179,7 +178,6 @@ COMMANDS_MAP = {
     "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة", "اسأل"],
     "تحدي": ["تحدي", "تحديات", "تحد"],
     "اعتراف": ["اعتراف", "اعترافات"],
-    "شخصي": ["شخصي", "شخصية", "شخصيات"],
     "أكثر": ["أكثر", "اكثر", "زيادة"],
     "أمثال": ["أمثال", "امثال", "مثل"],
     "لغز": ["لغز", "الغاز", "ألغاز"]
@@ -199,7 +197,6 @@ def create_main_menu() -> QuickReply:
         QuickReplyButton(action=MessageAction(label="❓ سؤال", text="سؤال")),
         QuickReplyButton(action=MessageAction(label="🎯 تحدي", text="تحدي")),
         QuickReplyButton(action=MessageAction(label="💬 اعتراف", text="اعتراف")),
-        QuickReplyButton(action=MessageAction(label="👤 شخصي", text="شخصي")),
         QuickReplyButton(action=MessageAction(label="✨ أكثر", text="أكثر")),
         QuickReplyButton(action=MessageAction(label="🎮 لعبة", text="لعبه")),
         QuickReplyButton(action=MessageAction(label="📜 أمثال", text="أمثال")),
@@ -336,12 +333,11 @@ def handle_message(event):
 def handle_help_command(event):
     """معالجة أمر المساعدة"""
     welcome_msg = (
-        "👋 أهلاً بك!\n\n"
+        "🖤 أهلاً بك!\n\n"
         "📋 الأقسام المتاحة:\n"
         "❓ سؤال - أسئلة ممتعة\n"
         "🎯 تحدي - تحديات مثيرة\n"
         "💬 اعتراف - اعترافات صادقة\n"
-        "👤 شخصي - أسئلة شخصية\n"
         "✨ أكثر - أسئلة 'أكثر واحد'\n"
         "🎮 لعبة - ألعاب تحليل الشخصية\n"
         "📜 أمثال - أمثال شعبية\n"
