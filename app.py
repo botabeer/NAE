@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import random
 from typing import List, Optional, Dict, Union
 from threading import Lock
 from flask import Flask, request, abort
@@ -43,7 +44,9 @@ class ContentManager:
         self.riddles_list: List[dict] = []
         self.games_list: List[dict] = []
         self.detailed_results: Dict = {}
-        self.indices: Dict[str, int] = {}
+        
+        # تتبع العناصر المستخدمة لكل قسم
+        self.used_indices: Dict[str, List[int]] = {}
         
     def load_file_lines(self, filename: str) -> List[str]:
         """تحميل محتوى ملف نصي مع معالجة أفضل للأخطاء"""
@@ -89,11 +92,11 @@ class ContentManager:
             "شخصي": self.load_file_lines("personality.txt"),
         }
         
-        # تهيئة المؤشرات
-        self.indices = {key: 0 for key in self.content_files.keys()}
-        self.indices["أكثر"] = 0
-        self.indices["أمثال"] = 0
-        self.indices["لغز"] = 0
+        # تهيئة قوائم التتبع
+        self.used_indices = {key: [] for key in self.content_files.keys()}
+        self.used_indices["أكثر"] = []
+        self.used_indices["أمثال"] = []
+        self.used_indices["لغز"] = []
         
         # تحميل الملفات الأخرى
         self.more_questions = self.load_file_lines("more_file.txt")
@@ -110,50 +113,57 @@ class ContentManager:
         
         logger.info("تم تهيئة جميع الملفات بنجاح")
     
+    def get_random_index(self, command: str, max_length: int) -> int:
+        """الحصول على index عشوائي غير مكرر"""
+        with content_lock:
+            # إذا استخدمنا كل العناصر، نعيد البدء
+            if len(self.used_indices[command]) >= max_length:
+                self.used_indices[command] = []
+            
+            # إنشاء قائمة بالـ indices المتاحة
+            available_indices = [i for i in range(max_length) if i not in self.used_indices[command]]
+            
+            # اختيار index عشوائي
+            if available_indices:
+                index = random.choice(available_indices)
+                self.used_indices[command].append(index)
+                return index
+            
+            # fallback: اختيار عشوائي بالكامل
+            return random.randint(0, max_length - 1)
+    
     def get_content(self, command: str) -> Optional[str]:
-        """الحصول على محتوى مع thread-safety"""
+        """الحصول على محتوى عشوائي مع تجنب التكرار"""
         file_list = self.content_files.get(command, [])
         if not file_list:
             return None
         
-        with content_lock:
-            index = self.indices[command]
-            content = file_list[index]
-            self.indices[command] = (index + 1) % len(file_list)
-            return content
+        index = self.get_random_index(command, len(file_list))
+        return file_list[index]
     
     def get_more_question(self) -> Optional[str]:
-        """الحصول على سؤال 'أكثر' مع thread-safety"""
+        """الحصول على سؤال 'أكثر' عشوائي"""
         if not self.more_questions:
             return None
         
-        with content_lock:
-            index = self.indices["أكثر"]
-            question = self.more_questions[index]
-            self.indices["أكثر"] = (index + 1) % len(self.more_questions)
-            return question
+        index = self.get_random_index("أكثر", len(self.more_questions))
+        return self.more_questions[index]
     
     def get_proverb(self) -> Optional[dict]:
-        """الحصول على مثل"""
+        """الحصول على مثل عشوائي"""
         if not self.proverbs_list:
             return None
         
-        with content_lock:
-            index = self.indices["أمثال"]
-            proverb = self.proverbs_list[index]
-            self.indices["أمثال"] = (index + 1) % len(self.proverbs_list)
-            return proverb
+        index = self.get_random_index("أمثال", len(self.proverbs_list))
+        return self.proverbs_list[index]
     
     def get_riddle(self) -> Optional[dict]:
-        """الحصول على لغز"""
+        """الحصول على لغز عشوائي"""
         if not self.riddles_list:
             return None
         
-        with content_lock:
-            index = self.indices["لغز"]
-            riddle = self.riddles_list[index]
-            self.indices["لغز"] = (index + 1) % len(self.riddles_list)
-            return riddle
+        index = self.get_random_index("لغز", len(self.riddles_list))
+        return self.riddles_list[index]
 
 # تهيئة مدير المحتوى
 content_manager = ContentManager()
@@ -326,7 +336,7 @@ def handle_message(event):
 def handle_help_command(event):
     """معالجة أمر المساعدة"""
     welcome_msg = (
-        "👋 أهلاً بك!\n\n"
+        "🖤 أهلاً بك!\n\n"
         "📋 الأقسام المتاحة:\n"
         "❓ سؤال - أسئلة ممتعة\n"
         "🎯 تحدي - تحديات مثيرة\n"
@@ -336,6 +346,7 @@ def handle_help_command(event):
         "🎮 لعبة - ألعاب تحليل الشخصية\n"
         "📜 أمثال - أمثال شعبية\n"
         "🧩 لغز - ألغاز مسلية\n\n"
+        "🎲 الاختيار عشوائي ولا يتكرر!\n\n"
         "🔽 اختر من القائمة:"
     )
     line_bot_api.reply_message(
@@ -451,7 +462,7 @@ def handle_game_answer(event, user_id: str, text: str):
             )
         else:
             result = calculate_result(state["answers"], state["game_index"])
-            final_msg = f"🎉 انتهت اللعبة!\n\n{result}\n\n💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
+            final_msg = f" انتهت اللعبة!\n\n{result}\n\n💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
             
             line_bot_api.reply_message(
                 event.reply_token,
