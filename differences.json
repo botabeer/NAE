@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "original": "https://i.imgur.com/1Yq7rKj.jpg",
+    "changed": "https://i.imgur.com/XM0HkEW.jpg",
+    "answer": 3,
+    "difficulty": "سهل"
+  },
+  {
+    "id": 2,
+    "original": "https://i.imgur.com/4bAqH8h.jpg",
+    "changed": "https://i.imgur.com/W3x1jpd.jpg",
+    "answer": 5,
+    "difficulty": "متوسط"
+  },
+  {
+    "id": 3,
+    "original": "https://i.imgur.com/R60SwLZ.jpg",
+    "changed": "https://i.imgur.com/OCZTjXA.jpg",
+    "answer": 4,
+    "difficulty": "متوسط"
+  },
+  {
+    "id": 4,
+    "original": "https://i.imgur.com/example1.jpg",
+    "changed": "https://i.imgur.com/example2.jpg",
+    "answer": 6,
+    "difficulty": "صعب"
+  },
+  {
+    "id": 5,
+    "original": "https://i.imgur.com/example3.jpg",
+    "changed": "https://i.imgur.com/example4.jpg",
+    "answer": 7,
+    "difficulty": "صعب"
+  }
+]
