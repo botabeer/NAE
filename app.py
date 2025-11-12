@@ -10,8 +10,6 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, ImageSendMessage,
-    FlexSendMessage, BubbleContainer, BoxComponent, TextComponent,
-    ImageComponent, SeparatorComponent, FillerComponent,
     QuickReply, QuickReplyButton, MessageAction
 )
 
@@ -41,6 +39,26 @@ stats_lock = Lock()
 class UserStats:
     def __init__(self):
         self.stats: Dict[str, dict] = {}
+        self.stats_file = "user_stats.json"
+        self.load_stats()
+    
+    def load_stats(self):
+        """تحميل الإحصائيات من ملف"""
+        if os.path.exists(self.stats_file):
+            try:
+                with open(self.stats_file, 'r', encoding='utf-8') as f:
+                    self.stats = json.load(f)
+                logger.info(f"✓ تم تحميل إحصائيات {len(self.stats)} مستخدم")
+            except Exception as e:
+                logger.error(f"خطأ في تحميل الإحصائيات: {e}")
+    
+    def save_stats(self):
+        """حفظ الإحصائيات إلى ملف"""
+        try:
+            with open(self.stats_file, 'w', encoding='utf-8') as f:
+                json.dump(self.stats, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"خطأ في حفظ الإحصائيات: {e}")
     
     def get_user_stats(self, user_id: str) -> dict:
         with stats_lock:
@@ -61,35 +79,34 @@ class UserStats:
             stats = self.get_user_stats(user_id)
             stats[stat_key] = stats.get(stat_key, 0) + increment
             stats["last_visit"] = datetime.now().isoformat()
-            self.check_achievements(user_id)
+            new_achievements = self.check_achievements(user_id)
+            self.save_stats()
+            return new_achievements
     
     def add_points(self, user_id: str, points: int):
         with stats_lock:
             stats = self.get_user_stats(user_id)
             stats["points"] = stats.get("points", 0) + points
-            self.check_achievements(user_id)
+            new_achievements = self.check_achievements(user_id)
+            self.save_stats()
+            return new_achievements
     
     def check_achievements(self, user_id: str):
         stats = self.stats[user_id]
         achievements = stats.get("achievements", [])
-        
-        # إنجازات جديدة
         new_achievements = []
         
-        if stats.get("riddles_solved", 0) >= 5 and "🧩 حلّال الألغاز" not in achievements:
-            new_achievements.append("🧩 حلّال الألغاز")
+        achievement_rules = [
+            (5, "riddles_solved", "◆ حلّال الألغاز"),
+            (5, "emoji_solved", "◆ خبير الإيموجي"),
+            (3, "games_completed", "◆ محلل شخصيات"),
+            (100, "points", "◆ نجم صاعد"),
+            (500, "points", "◆ أسطورة")
+        ]
         
-        if stats.get("emoji_solved", 0) >= 5 and "😊 خبير الإيموجي" not in achievements:
-            new_achievements.append("😊 خبير الإيموجي")
-        
-        if stats.get("games_completed", 0) >= 3 and "🎮 لاعب محترف" not in achievements:
-            new_achievements.append("🎮 لاعب محترف")
-        
-        if stats.get("points", 0) >= 100 and "⭐ نجم ساطع" not in achievements:
-            new_achievements.append("⭐ نجم ساطع")
-        
-        if stats.get("points", 0) >= 500 and "👑 أسطورة" not in achievements:
-            new_achievements.append("👑 أسطورة")
+        for threshold, key, achievement in achievement_rules:
+            if stats.get(key, 0) >= threshold and achievement not in achievements:
+                new_achievements.append(achievement)
         
         stats["achievements"].extend(new_achievements)
         return new_achievements
@@ -112,28 +129,28 @@ class ContentManager:
 
     def load_file_lines(self, filename: str) -> List[str]:
         if not os.path.exists(filename):
-            logger.warning(f"الملف غير موجود: {filename}")
+            logger.warning(f"⚠ الملف غير موجود: {filename}")
             return []
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip()]
-                logger.info(f"تم تحميل {len(lines)} سطر من {filename}")
+                logger.info(f"✓ تم تحميل {len(lines)} سطر من {filename}")
                 return lines
         except Exception as e:
-            logger.error(f"خطأ في قراءة الملف {filename}: {e}")
+            logger.error(f"✗ خطأ في قراءة {filename}: {e}")
             return []
 
     def load_json_file(self, filename: str) -> Union[dict, list]:
         if not os.path.exists(filename):
-            logger.warning(f"الملف غير موجود: {filename}")
+            logger.warning(f"⚠ الملف غير موجود: {filename}")
             return [] if filename.endswith("s.json") else {}
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                logger.info(f"تم تحميل {filename}")
+                logger.info(f"✓ تم تحميل {filename}")
                 return data
         except Exception as e:
-            logger.error(f"خطأ في قراءة أو تحليل JSON {filename}: {e}")
+            logger.error(f"✗ خطأ في تحليل {filename}: {e}")
             return [] if filename.endswith("s.json") else {}
 
     def initialize(self):
@@ -165,7 +182,7 @@ class ContentManager:
         else:
             self.games_list = []
 
-        logger.info("تم تهيئة جميع الملفات بنجاح")
+        logger.info("✓ تم تهيئة جميع الملفات بنجاح")
 
     def get_random_index(self, command: str, max_length: int) -> int:
         with content_lock:
@@ -201,13 +218,13 @@ class ContentManager:
         if not self.poems_list: return None
         index = self.get_random_index("شعر", len(self.poems_list))
         poem_entry = self.poems_list[index]
-        return f"📝 {poem_entry.get('poet', 'شاعر مجهول')}\n\n{poem_entry.get('text', '')}"
+        return f"◆ {poem_entry.get('poet', 'مجهول')}\n\n{poem_entry.get('text', '')}"
 
     def get_quote(self) -> Optional[str]:
         if not self.quotes_list: return None
         index = self.get_random_index("اقتباسات", len(self.quotes_list))
         quote_entry = self.quotes_list[index]
-        return f"💭 {quote_entry.get('author', '')}\n\n{quote_entry.get('text', '')}"
+        return f"◆ {quote_entry.get('author', '')}\n\n{quote_entry.get('text', '')}"
 
     def get_daily_tip(self) -> Optional[dict]:
         if not self.daily_tips: return None
@@ -221,17 +238,17 @@ content_manager.initialize()
 # === الأزرار الرئيسية ===
 def create_main_menu() -> QuickReply:
     return QuickReply(items=[
-        QuickReplyButton(action=MessageAction(label="❓ سؤال", text="سؤال")),
-        QuickReplyButton(action=MessageAction(label="🎯 تحدي", text="تحدي")),
-        QuickReplyButton(action=MessageAction(label="💬 اعتراف", text="اعتراف")),
-        QuickReplyButton(action=MessageAction(label="✨ أكثر", text="أكثر")),
-        QuickReplyButton(action=MessageAction(label="😊 ايموجي", text="ايموجي")),
-        QuickReplyButton(action=MessageAction(label="🧩 لغز", text="لغز")),
-        QuickReplyButton(action=MessageAction(label="📝 شعر", text="شعر")),
-        QuickReplyButton(action=MessageAction(label="💭 اقتباس", text="اقتباسات")),
-        QuickReplyButton(action=MessageAction(label="🎮 لعبة", text="لعبه")),
-        QuickReplyButton(action=MessageAction(label="💡 نصيحة", text="نصيحة")),
-        QuickReplyButton(action=MessageAction(label="📊 إحصائياتي", text="احصائياتي")),
+        QuickReplyButton(action=MessageAction(label="◆ سؤال", text="سؤال")),
+        QuickReplyButton(action=MessageAction(label="◆ تحدي", text="تحدي")),
+        QuickReplyButton(action=MessageAction(label="◆ اعتراف", text="اعتراف")),
+        QuickReplyButton(action=MessageAction(label="◆ أكثر", text="أكثر")),
+        QuickReplyButton(action=MessageAction(label="◆ ايموجي", text="ايموجي")),
+        QuickReplyButton(action=MessageAction(label="◆ لغز", text="لغز")),
+        QuickReplyButton(action=MessageAction(label="◆ شعر", text="شعر")),
+        QuickReplyButton(action=MessageAction(label="◆ اقتباس", text="اقتباسات")),
+        QuickReplyButton(action=MessageAction(label="◆ تحليل شخصية", text="تحليل")),
+        QuickReplyButton(action=MessageAction(label="◆ نصيحة", text="نصيحة")),
+        QuickReplyButton(action=MessageAction(label="◆ إحصائياتي", text="احصائياتي")),
     ])
 
 # === حالات المستخدمين ===
@@ -260,23 +277,31 @@ def find_command(text: str) -> Optional[str]:
             return key
     return None
 
-# === دوال الألعاب ===
-def get_games_list() -> str:
+# === دوال تحليل الشخصية ===
+def get_personality_tests_list() -> str:
     if not content_manager.games_list:
-        return "⚠️ لا توجد ألعاب متاحة حالياً."
+        return "▫️ لا توجد اختبارات متاحة حالياً"
     
-    lines = ["━━━━━━━━━━━━━━━━━━━", "🎮  الألعاب المتاحة", "━━━━━━━━━━━━━━━━━━━", ""]
-    number_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+    lines = [
+        "┌─────────────────────┐",
+        "│   تحليل الشخصية    │",
+        "└─────────────────────┘",
+        ""
+    ]
     
-    for i, game in enumerate(content_manager.games_list):
-        emoji = number_emojis[i] if i < len(number_emojis) else f"{i+1}."
-        game_title = game.get('title', f'اللعبة {i+1}')
-        lines.append(f"{emoji} {game_title}")
+    for i, game in enumerate(content_manager.games_list, 1):
+        game_title = game.get('title', f'اختبار {i}')
+        lines.append(f"  {i}. {game_title}")
     
-    lines.extend(["", "━━━━━━━━━━━━━━━━━━━", f"📌 أرسل رقم اللعبة (1-{len(content_manager.games_list)})", ""])
+    lines.extend([
+        "",
+        "┌─────────────────────┐",
+        f"│ أرسل رقم الاختبار  │",
+        "└─────────────────────┘"
+    ])
     return "\n".join(lines)
 
-def calculate_result(answers: List[str], game_index: int) -> str:
+def calculate_personality_result(answers: List[str], game_index: int) -> str:
     count = {"أ": 0, "ب": 0, "ج": 0}
     for ans in answers:
         if ans in count:
@@ -284,25 +309,31 @@ def calculate_result(answers: List[str], game_index: int) -> str:
     
     most_common = max(count, key=count.get)
     game_key = f"لعبة{game_index+1}"
+    
     result_text = content_manager.detailed_results.get(game_key, {}).get(
-        most_common, f"✅ إجابتك الأكثر: {most_common}\n\n🎯 نتيجتك تعكس شخصية فريدة!"
+        most_common, 
+        f"◆ نتيجتك\n\nإجاباتك تعكس شخصية فريدة ومميزة"
     )
     
-    stats = f"\n\n━━━━━━━━━━━━━━━━━━━\n📊 إحصائياتك\n━━━━━━━━━━━━━━━━━━━\nأ: {count['أ']} | ب: {count['ب']} | ج: {count['ج']}"
-    return result_text + stats
+    stats_display = f"\n\n┌─────────────────────┐\n│   توزيع الإجابات   │\n└─────────────────────┘\n\n  أ: {count['أ']}  │  ب: {count['ب']}  │  ج: {count['ج']}"
+    return result_text + stats_display
 
-def handle_game_selection(event, user_id: str, num: int):
+def handle_personality_test_selection(event, user_id: str, num: int):
     if 1 <= num <= len(content_manager.games_list):
         game_index = num - 1
-        user_game_state[user_id] = {"game_index": game_index, "question_index": 0, "answers": []}
+        user_game_state[user_id] = {
+            "game_index": game_index, 
+            "question_index": 0, 
+            "answers": []
+        }
         game = content_manager.games_list[game_index]
         first_q = game["questions"][0]
         options = "\n".join([f"  {k}. {v}" for k, v in first_q["options"].items()])
         
-        msg = f"━━━━━━━━━━━━━━━━━━━\n🎮 {game.get('title', f'اللعبة {num}')}\n━━━━━━━━━━━━━━━━━━━\n\n❓ {first_q['question']}\n\n{options}\n\n━━━━━━━━━━━━━━━━━━━\n📝 أرسل: أ، ب، أو ج"
+        msg = f"┌─────────────────────┐\n│ {game.get('title', f'اختبار {num}')} │\n└─────────────────────┘\n\n◆ {first_q['question']}\n\n{options}\n\n┌─────────────────────┐\n│ أرسل: أ، ب، أو ج   │\n└─────────────────────┘"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
 
-def handle_game_answer(event, user_id: str, text: str):
+def handle_personality_test_answer(event, user_id: str, text: str):
     state = user_game_state.get(user_id)
     if not state:
         return
@@ -320,19 +351,18 @@ def handle_game_answer(event, user_id: str, text: str):
             options = "\n".join([f"  {k}. {v}" for k, v in q["options"].items()])
             progress = f"[{state['question_index']+1}/{len(game['questions'])}]"
             
-            msg = f"{progress}\n\n❓ {q['question']}\n\n{options}\n\n━━━━━━━━━━━━━━━━━━━\n📝 أرسل: أ، ب، أو ج"
+            msg = f"{progress}\n\n◆ {q['question']}\n\n{options}\n\n┌─────────────────────┐\n│ أرسل: أ، ب، أو ج   │\n└─────────────────────┘"
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
         else:
-            result = calculate_result(state["answers"], state["game_index"])
-            user_stats.update_stat(user_id, "games_completed")
+            result = calculate_personality_result(state["answers"], state["game_index"])
+            new_achievements = user_stats.update_stat(user_id, "games_completed")
             user_stats.add_points(user_id, 50)
             
-            new_achievements = user_stats.check_achievements(user_id)
             achievement_msg = ""
             if new_achievements:
-                achievement_msg = f"\n\n🎉 إنجاز جديد: {', '.join(new_achievements)}\n+50 نقطة"
+                achievement_msg = f"\n\n┌─────────────────────┐\n│   إنجاز جديد!      │\n└─────────────────────┘\n\n{', '.join(new_achievements)}\n+50 نقطة"
             
-            final_msg = f"━━━━━━━━━━━━━━━━━━━\n🏁 انتهت اللعبة!\n━━━━━━━━━━━━━━━━━━━\n\n{result}{achievement_msg}\n\n💬 أرسل 'لعبه' لتجربة لعبة أخرى!"
+            final_msg = f"┌─────────────────────┐\n│   تحليل الشخصية    │\n└─────────────────────┘\n\n{result}{achievement_msg}\n\n▫️ أرسل 'تحليل' لاختبار آخر"
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=final_msg, quick_reply=create_main_menu()))
             del user_game_state[user_id]
 
@@ -343,14 +373,13 @@ def handle_emoji_puzzle(event, user_id: str):
     if not puzzle:
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⚠️ لا توجد ألغاز إيموجي متاحة حالياً.", quick_reply=create_main_menu())
+            TextSendMessage(text="▫️ لا توجد ألغاز إيموجي حالياً", quick_reply=create_main_menu())
         )
         return
     
     user_emoji_state[user_id] = puzzle
     user_stats.update_stat(user_id, "total_questions")
     
-    # إذا كان هناك صورة
     if puzzle.get("image") and puzzle["image"].strip():
         line_bot_api.reply_message(
             event.reply_token,
@@ -360,30 +389,28 @@ def handle_emoji_puzzle(event, user_id: str):
                     preview_image_url=puzzle["image"]
                 ),
                 TextSendMessage(
-                    text=f"━━━━━━━━━━━━━━━━━━━\n😊 خمّن الإيموجي!\n━━━━━━━━━━━━━━━━━━━\n\n💡 'لمح' للتلميح\n💡 'جاوب' للإجابة",
+                    text=f"┌─────────────────────┐\n│  لغز الإيموجي      │\n└─────────────────────┘\n\n◆ 'لمح' للتلميح\n◆ 'جاوب' للإجابة",
                     quick_reply=create_main_menu()
                 )
             ]
         )
     else:
-        # إيموجي نصي
-        msg = f"━━━━━━━━━━━━━━━━━━━\n😊 خمّن الإيموجي\n━━━━━━━━━━━━━━━━━━━\n\n{puzzle['question']}\n\n━━━━━━━━━━━━━━━━━━━\n💡 'لمح' للتلميح | 'جاوب' للإجابة"
+        msg = f"┌─────────────────────┐\n│  لغز الإيموجي      │\n└─────────────────────┘\n\n{puzzle['question']}\n\n┌─────────────────────┐\n│ لمح • جاوب          │\n└─────────────────────┘"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
 
 def handle_riddle(event, user_id: str):
-    """معالجة الألغاز العادية"""
+    """معالجة الألغاز"""
     riddle = content_manager.get_riddle()
     if not riddle:
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⚠️ لا توجد ألغاز متاحة حالياً.", quick_reply=create_main_menu())
+            TextSendMessage(text="▫️ لا توجد ألغاز حالياً", quick_reply=create_main_menu())
         )
         return
     
     user_riddle_state[user_id] = riddle
     user_stats.update_stat(user_id, "total_questions")
     
-    # إذا كان هناك صورة
     if riddle.get("image") and riddle["image"].strip():
         line_bot_api.reply_message(
             event.reply_token,
@@ -393,14 +420,13 @@ def handle_riddle(event, user_id: str):
                     preview_image_url=riddle["image"]
                 ),
                 TextSendMessage(
-                    text=f"━━━━━━━━━━━━━━━━━━━\n🧩 اللغز في الصورة!\n━━━━━━━━━━━━━━━━━━━\n\n💡 'لمح' للتلميح\n💡 'جاوب' للإجابة",
+                    text=f"┌─────────────────────┐\n│      اللغز         │\n└─────────────────────┘\n\n◆ 'لمح' للتلميح\n◆ 'جاوب' للإجابة",
                     quick_reply=create_main_menu()
                 )
             ]
         )
     else:
-        # لغز نصي
-        msg = f"━━━━━━━━━━━━━━━━━━━\n🧩 اللغز\n━━━━━━━━━━━━━━━━━━━\n\n{riddle['question']}\n\n━━━━━━━━━━━━━━━━━━━\n💡 'لمح' للتلميح | 'جاوب' للإجابة"
+        msg = f"┌─────────────────────┐\n│      اللغز         │\n└─────────────────────┘\n\n{riddle['question']}\n\n┌─────────────────────┐\n│ لمح • جاوب          │\n└─────────────────────┘"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
 
 def handle_content_command(event, command: str):
@@ -422,129 +448,129 @@ def handle_content_command(event, command: str):
     
     if command == "أكثر":
         question = content_manager.get_more_question()
-        content = question if question else "⚠️ لا توجد أسئلة متاحة في قسم 'أكثر'."
+        content = question if question else "▫️ لا توجد أسئلة حالياً"
     
     elif command == "شعر":
         poem = content_manager.get_poem()
         if poem:
-            content = f"━━━━━━━━━━━━━━━━━━━\n{poem}\n━━━━━━━━━━━━━━━━━━━"
+            content = f"┌─────────────────────┐\n│      شعر           │\n└─────────────────────┘\n\n{poem}"
         else:
-            content = "⚠️ لا يوجد شعر متاح حالياً."
+            content = "▫️ لا يوجد شعر حالياً"
     
     elif command == "اقتباسات":
         quote = content_manager.get_quote()
         if quote:
-            content = f"━━━━━━━━━━━━━━━━━━━\n{quote}\n━━━━━━━━━━━━━━━━━━━"
+            content = f"┌─────────────────────┐\n│     اقتباس         │\n└─────────────────────┘\n\n{quote}"
         else:
-            content = "⚠️ لا توجد اقتباسات متاحة حالياً."
+            content = "▫️ لا توجد اقتباسات حالياً"
     
     elif command == "نصيحة":
         tip = content_manager.get_daily_tip()
         if tip:
-            content = f"━━━━━━━━━━━━━━━━━━━\n💡 {tip.get('title', 'نصيحة اليوم')}\n━━━━━━━━━━━━━━━━━━━\n\n{tip.get('content', '')}\n\n━━━━━━━━━━━━━━━━━━━\n✨ {tip.get('category', '')}"
+            content = f"┌─────────────────────┐\n│ {tip.get('title', 'نصيحة اليوم')} │\n└─────────────────────┘\n\n{tip.get('content', '')}\n\n◆ {tip.get('category', '')}"
         else:
-            content = "⚠️ لا توجد نصائح متاحة حالياً."
+            content = "▫️ لا توجد نصائح حالياً"
     
     else:
         content = content_manager.get_content(command)
         if content:
-            content = f"━━━━━━━━━━━━━━━━━━━\n{content}\n━━━━━━━━━━━━━━━━━━━"
+            content = f"┌─────────────────────┐\n│ {command} │\n└─────────────────────┘\n\n{content}"
         else:
-            content = f"⚠️ لا توجد بيانات متاحة في قسم '{command}' حالياً."
+            content = f"▫️ لا توجد بيانات في '{command}' حالياً"
     
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=content, quick_reply=create_main_menu()))
 
 def handle_answer_command(event, user_id: str):
-    """معالجة أمر الإجابة"""
+    """معالجة الإجابة"""
     if user_id in user_emoji_state:
         puzzle = user_emoji_state.pop(user_id)
-        user_stats.update_stat(user_id, "emoji_solved")
+        new_achievements = user_stats.update_stat(user_id, "emoji_solved")
         user_stats.add_points(user_id, 10)
         
-        new_achievements = user_stats.check_achievements(user_id)
         achievement_msg = ""
         if new_achievements:
-            achievement_msg = f"\n\n🎉 إنجاز جديد: {', '.join(new_achievements)}"
+            achievement_msg = f"\n\n◆ إنجاز جديد\n{', '.join(new_achievements)}"
         
-        msg = f"━━━━━━━━━━━━━━━━━━━\n✅ الإجابة الصحيحة\n━━━━━━━━━━━━━━━━━━━\n\n{puzzle['answer']}\n\n+10 نقاط{achievement_msg}"
+        msg = f"┌─────────────────────┐\n│   الإجابة الصحيحة  │\n└─────────────────────┘\n\n{puzzle['answer']}\n\n◆ +10 نقاط{achievement_msg}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
     
     elif user_id in user_riddle_state:
         riddle = user_riddle_state.pop(user_id)
-        user_stats.update_stat(user_id, "riddles_solved")
+        new_achievements = user_stats.update_stat(user_id, "riddles_solved")
         user_stats.add_points(user_id, 10)
         
-        new_achievements = user_stats.check_achievements(user_id)
         achievement_msg = ""
         if new_achievements:
-            achievement_msg = f"\n\n🎉 إنجاز جديد: {', '.join(new_achievements)}"
+            achievement_msg = f"\n\n◆ إنجاز جديد\n{', '.join(new_achievements)}"
         
-        msg = f"━━━━━━━━━━━━━━━━━━━\n✅ الإجابة الصحيحة\n━━━━━━━━━━━━━━━━━━━\n\n{riddle['answer']}\n\n+10 نقاط{achievement_msg}"
+        msg = f"┌─────────────────────┐\n│   الإجابة الصحيحة  │\n└─────────────────────┘\n\n{riddle['answer']}\n\n◆ +10 نقاط{achievement_msg}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
 
 def handle_hint_command(event, user_id: str):
-    """معالجة أمر التلميح"""
+    """التلميح"""
     if user_id in user_emoji_state:
         puzzle = user_emoji_state[user_id]
         hint = puzzle.get('hint', 'لا يوجد تلميح')
-        msg = f"━━━━━━━━━━━━━━━━━━━\n💡 تلميح\n━━━━━━━━━━━━━━━━━━━\n\n{hint}"
+        msg = f"┌─────────────────────┐\n│     التلميح        │\n└─────────────────────┘\n\n{hint}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
     
     elif user_id in user_riddle_state:
         riddle = user_riddle_state[user_id]
         hint = riddle.get('hint', 'لا يوجد تلميح')
-        msg = f"━━━━━━━━━━━━━━━━━━━\n💡 تلميح\n━━━━━━━━━━━━━━━━━━━\n\n{hint}"
+        msg = f"┌─────────────────────┐\n│     التلميح        │\n└─────────────────────┘\n\n{hint}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
 
 def show_user_stats(event, user_id: str):
-    """عرض إحصائيات المستخدم"""
+    """عرض الإحصائيات"""
     stats = user_stats.get_user_stats(user_id)
-    
-    # حساب الرتبة
     points = stats.get("points", 0)
+    
     if points < 50:
-        rank = "🥉 مبتدئ"
+        rank = "مبتدئ"
     elif points < 100:
-        rank = "🥈 متقدم"
+        rank = "متقدم"
     elif points < 300:
-        rank = "🥇 محترف"
+        rank = "محترف"
     elif points < 500:
-        rank = "💎 خبير"
+        rank = "خبير"
     else:
-        rank = "👑 أسطورة"
+        rank = "أسطورة"
     
     achievements_list = stats.get("achievements", [])
-    achievements_text = "\n".join(achievements_list) if achievements_list else "لا توجد إنجازات بعد"
+    achievements_text = "\n".join([f"  {a}" for a in achievements_list]) if achievements_list else "  لا توجد إنجازات بعد"
     
-    msg = f"""━━━━━━━━━━━━━━━━━━━
-📊 إحصائياتك
-━━━━━━━━━━━━━━━━━━━
+    msg = f"""┌─────────────────────┐
+│    إحصائياتك       │
+└─────────────────────┘
 
-🏅 الرتبة: {rank}
-⭐ النقاط: {points}
+◆ الرتبة: {rank}
+◆ النقاط: {points}
 
-📈 الإنجازات:
-❓ أسئلة مجاب عليها: {stats.get('total_questions', 0)}
-🧩 ألغاز محلولة: {stats.get('riddles_solved', 0)}
-😊 إيموجي محلولة: {stats.get('emoji_solved', 0)}
-🎮 ألعاب مكتملة: {stats.get('games_completed', 0)}
+┌─────────────────────┐
+│     الإنجازات      │
+└─────────────────────┘
 
-🏆 الإنجازات المفتوحة:
-{achievements_text}
+  الأسئلة: {stats.get('total_questions', 0)}
+  الألغاز: {stats.get('riddles_solved', 0)}
+  الإيموجي: {stats.get('emoji_solved', 0)}
+  التحليلات: {stats.get('games_completed', 0)}
 
-━━━━━━━━━━━━━━━━━━━
-💪 استمر في التقدم!"""
+┌─────────────────────┐
+│   الأوسمة المكتسبة │
+└─────────────────────┘
+
+{achievements_text}"""
     
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
 
 # === Routes ===
 @app.route("/", methods=["GET"])
 def home():
-    return "✅ البوت يعمل بنجاح!", 200
+    return "✓ البوت يعمل بنجاح", 200
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    return {"status": "healthy", "service": "line-bot", "version": "2.0"}, 200
+    return {"status": "healthy", "service": "line-bot", "version": "3.0"}, 200
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -553,10 +579,10 @@ def callback():
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        logger.error("توقيع غير صالح")
+        logger.error("✗ توقيع غير صالح")
         abort(400)
     except Exception as e:
-        logger.error(f"خطأ في معالجة الطلب: {e}")
+        logger.error(f"✗ خطأ في معالجة الطلب: {e}")
         abort(500)
     return "OK"
 
@@ -567,39 +593,49 @@ def handle_message(event):
     text_lower = text.lower()
 
     try:
-        # رسالة البداية
+        # رسالة الترحيب
         if text_lower in ["مساعدة", "help", "بداية", "start", "البداية"]:
-            welcome_msg = """━━━━━━━━━━━━━━━━━━━
-مرحباً بك! 👋
-━━━━━━━━━━━━━━━━━━━
+            welcome_msg = """┌─────────────────────┐
+│    مرحباً بك       │
+└─────────────────────┘
 
-اختر من القائمة أدناه:
+◆ سؤال - أسئلة ممتعة
+◆ تحدي - تحديات شيقة
+◆ اعتراف - اعترافات صريحة
+◆ أكثر - أسئلة "من الأكثر"
+◆ ايموجي - ألغاز الإيموجي
+◆ لغز - ألغاز ذكية
+◆ شعر - أبيات شعرية
+◆ اقتباس - اقتباسات ملهمة
+◆ تحليل شخصية - اختبارات نفسية
+◆ نصيحة - نصائح يومية
+◆ إحصائياتي - تتبع تقدمك
 
-❓ سؤال - أسئلة ممتعة
-🎯 تحدي - تحديات شيقة
-💬 اعتراف - اعترافات صريحة
-✨ أكثر - أسئلة "من الأكثر"
-😊 ايموجي - ألغاز الإيموجي
-🧩 لغز - ألغاز ذكية
-📝 شعر - أبيات شعرية
-💭 اقتباس - اقتباسات ملهمة
-🎮 لعبة - ألعاب شخصية
-💡 نصيحة - نصائح يومية
-📊 إحصائياتي - تتبع تقدمك
-
-━━━━━━━━━━━━━━━━━━━
-🎯 احصل على نقاط وافتح إنجازات!"""
+┌─────────────────────┐
+│ اجمع النقاط واكسب  │
+│    الإنجازات       │
+└─────────────────────┘"""
             line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(text=welcome_msg, quick_reply=create_main_menu())
             )
             return
 
+        # الأوامر الأساسية
         command = find_command(text)
         if command:
             handle_content_command(event, command)
             return
 
+        # تحليل الشخصية
+        if text_lower in ["تحليل", "تحليل شخصية", "شخصية", "اختبار"]:
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=get_personality_tests_list(), quick_reply=create_main_menu())
+            )
+            return
+
+        # الإجابة والتلميح
         if text_lower in ["جاوب", "الجواب", "الاجابة", "اجابة", "الحل"]:
             handle_answer_command(event, user_id)
             return
@@ -608,28 +644,23 @@ def handle_message(event):
             handle_hint_command(event, user_id)
             return
 
-        if text_lower in ["لعبه", "لعبة", "العاب", "ألعاب", "game"]:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=get_games_list(), quick_reply=create_main_menu())
-            )
-            return
-
+        # اختيار رقم الاختبار
         if text.isdigit():
-            handle_game_selection(event, user_id, int(text))
+            handle_personality_test_selection(event, user_id, int(text))
             return
 
+        # الإجابة على الاختبار
         if user_id in user_game_state:
-            handle_game_answer(event, user_id, text)
+            handle_personality_test_answer(event, user_id, text)
             return
 
     except Exception as e:
-        logger.error(f"خطأ في معالجة الرسالة: {e}", exc_info=True)
+        logger.error(f"✗ خطأ في معالجة الرسالة: {e}", exc_info=True)
         try:
             line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(
-                    text="⚠️ حدث خطأ، يرجى المحاولة مرة أخرى",
+                    text="▫️ حدث خطأ، يرجى المحاولة مرة أخرى",
                     quick_reply=create_main_menu()
                 )
             )
@@ -639,5 +670,5 @@ def handle_message(event):
 # === تشغيل التطبيق ===
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    logger.info(f"البوت يعمل على المنفذ {port}")
+    logger.info(f"✓ البوت يعمل على المنفذ {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
