@@ -324,14 +324,15 @@ def create_poem_flex(poem_data: dict):
                             TextComponent(
                                 text=poem_data.get('text', ''),
                                 size='md',
-                                color='#2c2c2c',
+                                color='#1a1a1a',
                                 wrap=True,
                                 align='center',
-                                lineSpacing='10px'
+                                lineSpacing='10px',
+                                weight='bold'
                             )
                         ],
                         paddingAll='10px',
-                        backgroundColor='#f8f8f8',
+                        backgroundColor='#f0f0f0',
                         cornerRadius='8px'
                     ),
                     BoxComponent(
