@@ -8,7 +8,7 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage, FlexSendMessage,
+    MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, ImageSendMessage,
     QuickReply, QuickReplyButton, MessageAction, BubbleContainer,
     BoxComponent, TextComponent, ButtonComponent, MessageAction as FlexMessageAction,
     SeparatorComponent
@@ -35,12 +35,34 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # === Locks للتزامن ===
 content_lock = Lock()
 
+# === لعبة الفروقات ===
+DIFFERENCE_SETS = [
+    {
+        "original": "https://i.imgur.com/1Yq7rKj.jpg",
+        "changed": "https://i.imgur.com/XM0HkEW.jpg",
+        "answer": 3
+    },
+    {
+        "original": "https://i.imgur.com/4bAqH8h.jpg",
+        "changed": "https://i.imgur.com/W3x1jpd.jpg",
+        "answer": 5
+    },
+    {
+        "original": "https://i.imgur.com/R60SwLZ.jpg",
+        "changed": "https://i.imgur.com/OCZTjXA.jpg",
+        "answer": 4
+    }
+]
+
+def get_difference_challenge():
+    """اختيار تحدي فروقات عشوائي"""
+    return random.choice(DIFFERENCE_SETS)
+
 # === مدير المحتوى ===
 class ContentManager:
     def __init__(self):
         self.content_files: Dict[str, List[str]] = {}
         self.more_questions: List[str] = []
-        self.proverbs_list: List[dict] = []
         self.riddles_list: List[dict] = []
         self.games_list: List[dict] = []
         self.poems_list: List[dict] = []
@@ -82,11 +104,10 @@ class ContentManager:
         }
 
         self.used_indices = {key: [] for key in self.content_files.keys()}
-        for key in ["أكثر","أمثال","لغز","شعر","اقتباسات"]:
+        for key in ["أكثر","لغز","شعر","اقتباسات"]:
             self.used_indices[key] = []
 
         self.more_questions = self.load_file_lines("more_file.txt")
-        self.proverbs_list = self.load_json_file("proverbs.json")
         self.riddles_list = self.load_json_file("riddles.json")
         self.detailed_results = self.load_json_file("detailed_results.json")
         self.poems_list = self.load_json_file("poems.json")
@@ -120,49 +141,43 @@ class ContentManager:
         index = self.get_random_index("أكثر", len(self.more_questions))
         return self.more_questions[index]
 
-    def get_proverb(self) -> Optional[dict]:
-        if not self.proverbs_list: return None
-        index = self.get_random_index("أمثال", len(self.proverbs_list))
-        return self.proverbs_list[index]
-
     def get_riddle(self) -> Optional[dict]:
         if not self.riddles_list: return None
         index = self.get_random_index("لغز", len(self.riddles_list))
         return self.riddles_list[index]
 
-    def get_poem(self) -> Optional[str]:
+    def get_poem(self) -> Optional[dict]:
         if not self.poems_list: return None
         index = self.get_random_index("شعر", len(self.poems_list))
-        poem_entry = self.poems_list[index]
-        return f"📝 شعر - {poem_entry.get('poet','')}:\n\n{poem_entry.get('text','')}"
+        return self.poems_list[index]
 
-    def get_quote(self) -> Optional[str]:
+    def get_quote(self) -> Optional[dict]:
         if not self.quotes_list: return None
         index = self.get_random_index("اقتباسات", len(self.quotes_list))
-        quote_entry = self.quotes_list[index]
-        return f"💭 اقتباس - {quote_entry.get('author','')}:\n\n{quote_entry.get('text','')}"
+        return self.quotes_list[index]
 
 # === تهيئة مدير المحتوى ===
 content_manager = ContentManager()
 content_manager.initialize()
 
-# === الأزرار الرئيسية Quick Reply ===
+# === القوائم الثابتة ===
 def create_main_menu() -> QuickReply:
+    """القائمة الرئيسية الثابتة"""
     return QuickReply(items=[
-        QuickReplyButton(action=MessageAction(label="❓ سؤال", text="سؤال")),
-        QuickReplyButton(action=MessageAction(label="🎯 تحدي", text="تحدي")),
-        QuickReplyButton(action=MessageAction(label="💬 اعتراف", text="اعتراف")),
-        QuickReplyButton(action=MessageAction(label="✨ أكثر", text="أكثر")),
-        QuickReplyButton(action=MessageAction(label="📝 شعر", text="شعر")),
-        QuickReplyButton(action=MessageAction(label="💭 اقتباسات", text="اقتباسات")),
-        QuickReplyButton(action=MessageAction(label="🧩 لغز", text="لغز")),
-        QuickReplyButton(action=MessageAction(label="📜 أمثال", text="أمثال")),
-        QuickReplyButton(action=MessageAction(label="🎮 لعبة", text="لعبه")),
+        QuickReplyButton(action=MessageAction(label="سؤال", text="سؤال")),
+        QuickReplyButton(action=MessageAction(label="تحدي", text="تحدي")),
+        QuickReplyButton(action=MessageAction(label="اعتراف", text="اعتراف")),
+        QuickReplyButton(action=MessageAction(label="أكثر", text="أكثر")),
+        QuickReplyButton(action=MessageAction(label="شعر", text="شعر")),
+        QuickReplyButton(action=MessageAction(label="اقتباسات", text="اقتباسات")),
+        QuickReplyButton(action=MessageAction(label="لغز", text="لغز")),
+        QuickReplyButton(action=MessageAction(label="فرق", text="فرق")),
+        QuickReplyButton(action=MessageAction(label="لعبة", text="لعبه")),
     ])
 
-# === Flex Messages للألعاب ===
-def create_games_list_flex(games: list) -> FlexSendMessage:
-    """قائمة الألعاب بتصميم Flex احترافي"""
+# === Flex Messages البسيطة والأنيقة ===
+def create_game_list_flex(games: list):
+    """قائمة الألعاب بتصميم بسيط"""
     game_buttons = []
     for i, game in enumerate(games[:10], 1):
         game_buttons.append(
@@ -172,33 +187,26 @@ def create_games_list_flex(games: list) -> FlexSendMessage:
                     text=str(i)
                 ),
                 style='secondary',
-                color='#333333',
+                color='#000000',
                 height='sm'
             )
         )
     
     return FlexSendMessage(
-        alt_text="🎮 قائمة الألعاب",
+        alt_text="قائمة الألعاب",
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
                 layout='vertical',
                 contents=[
                     TextComponent(
-                        text='🎮',
-                        size='xxl',
-                        align='center',
-                        margin='none'
-                    ),
-                    TextComponent(
                         text='الألعاب المتاحة',
                         weight='bold',
                         size='xl',
-                        color='#1a1a1a',
-                        align='center',
-                        margin='md'
+                        color='#000000',
+                        align='center'
                     ),
-                    SeparatorComponent(margin='lg', color='#f5f5f5'),
+                    SeparatorComponent(margin='lg', color='#e0e0e0'),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
@@ -206,27 +214,27 @@ def create_games_list_flex(games: list) -> FlexSendMessage:
                         contents=game_buttons
                     )
                 ],
-                paddingAll='24px',
+                paddingAll='20px',
                 backgroundColor='#ffffff'
             )
         )
     )
 
-def create_game_question_flex(game_title: str, question: dict, progress: str) -> FlexSendMessage:
-    """سؤال اللعبة بتصميم Flex ناعم"""
+def create_game_question_flex(game_title: str, question: dict, progress: str):
+    """سؤال اللعبة بتصميم نظيف"""
     option_buttons = []
     for key, value in question['options'].items():
         option_buttons.append(
             ButtonComponent(
                 action=FlexMessageAction(label=f"{key}. {value}", text=key),
                 style='secondary',
-                color='#2c2c2c',
+                color='#000000',
                 height='sm'
             )
         )
     
     return FlexSendMessage(
-        alt_text=f"🎮 {game_title}",
+        alt_text=f"{game_title}",
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
@@ -236,17 +244,10 @@ def create_game_question_flex(game_title: str, question: dict, progress: str) ->
                         layout='horizontal',
                         contents=[
                             TextComponent(
-                                text='🎮',
-                                size='lg',
-                                flex=0,
-                                color='#4a4a4a'
-                            ),
-                            TextComponent(
                                 text=game_title,
                                 weight='bold',
                                 size='lg',
-                                color='#1a1a1a',
-                                margin='md',
+                                color='#000000',
                                 flex=1
                             ),
                             TextComponent(
@@ -258,7 +259,7 @@ def create_game_question_flex(game_title: str, question: dict, progress: str) ->
                             )
                         ]
                     ),
-                    SeparatorComponent(margin='lg', color='#f5f5f5'),
+                    SeparatorComponent(margin='lg', color='#e0e0e0'),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
@@ -266,14 +267,14 @@ def create_game_question_flex(game_title: str, question: dict, progress: str) ->
                             TextComponent(
                                 text=question['question'],
                                 size='md',
-                                color='#2c2c2c',
+                                color='#000000',
                                 wrap=True,
-                                lineSpacing='6px'
+                                lineSpacing='8px'
                             )
                         ],
                         paddingAll='16px',
-                        backgroundColor='#fafafa',
-                        cornerRadius='12px'
+                        backgroundColor='#f5f5f5',
+                        cornerRadius='8px'
                     ),
                     BoxComponent(
                         layout='vertical',
@@ -282,36 +283,37 @@ def create_game_question_flex(game_title: str, question: dict, progress: str) ->
                         contents=option_buttons
                     )
                 ],
-                paddingAll='24px',
+                paddingAll='20px',
                 backgroundColor='#ffffff'
             )
         )
     )
 
-def create_game_result_flex(result_text: str, stats: str) -> FlexSendMessage:
-    """نتيجة اللعبة بتصميم Flex مريح"""
+def create_game_result_flex(result_text: str, stats: str, username: str):
+    """نتيجة اللعبة بتصميم بسيط"""
     return FlexSendMessage(
-        alt_text="🏆 النتيجة",
+        alt_text="النتيجة",
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
                 layout='vertical',
                 contents=[
                     TextComponent(
-                        text='🏆',
-                        size='xxl',
-                        align='center',
-                        margin='none'
+                        text=f'{username}',
+                        weight='bold',
+                        size='lg',
+                        color='#666666',
+                        align='center'
                     ),
                     TextComponent(
                         text='نتيجتك',
                         weight='bold',
                         size='xl',
-                        color='#1a1a1a',
+                        color='#000000',
                         align='center',
                         margin='md'
                     ),
-                    SeparatorComponent(margin='lg', color='#f5f5f5'),
+                    SeparatorComponent(margin='lg', color='#e0e0e0'),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
@@ -319,14 +321,14 @@ def create_game_result_flex(result_text: str, stats: str) -> FlexSendMessage:
                             TextComponent(
                                 text=result_text,
                                 size='md',
-                                color='#2c2c2c',
+                                color='#000000',
                                 wrap=True,
-                                lineSpacing='6px'
+                                lineSpacing='8px'
                             )
                         ],
                         paddingAll='16px',
-                        backgroundColor='#fafafa',
-                        cornerRadius='12px'
+                        backgroundColor='#f5f5f5',
+                        cornerRadius='8px'
                     ),
                     BoxComponent(
                         layout='vertical',
@@ -346,15 +348,74 @@ def create_game_result_flex(result_text: str, stats: str) -> FlexSendMessage:
                         margin='xl',
                         contents=[
                             ButtonComponent(
-                                action=FlexMessageAction(label='🎮 لعبة جديدة', text='لعبه'),
+                                action=FlexMessageAction(label='لعبة جديدة', text='لعبه'),
                                 style='primary',
-                                color='#333333',
+                                color='#000000',
                                 height='sm'
                             )
                         ]
                     )
                 ],
-                paddingAll='24px',
+                paddingAll='20px',
+                backgroundColor='#ffffff'
+            )
+        )
+    )
+
+def create_riddle_flex(riddle: dict):
+    """عرض اللغز بتصميم بسيط"""
+    return FlexSendMessage(
+        alt_text="لغز",
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical',
+                contents=[
+                    TextComponent(
+                        text='لغز',
+                        weight='bold',
+                        size='xl',
+                        color='#000000',
+                        align='center'
+                    ),
+                    SeparatorComponent(margin='lg', color='#e0e0e0'),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
+                        contents=[
+                            TextComponent(
+                                text=riddle['question'],
+                                size='md',
+                                color='#000000',
+                                wrap=True,
+                                lineSpacing='8px'
+                            )
+                        ],
+                        paddingAll='16px',
+                        backgroundColor='#f5f5f5',
+                        cornerRadius='8px'
+                    ),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
+                        spacing='sm',
+                        contents=[
+                            ButtonComponent(
+                                action=FlexMessageAction(label='تلميح', text='لمح'),
+                                style='secondary',
+                                color='#666666',
+                                height='sm'
+                            ),
+                            ButtonComponent(
+                                action=FlexMessageAction(label='الإجابة', text='جاوب'),
+                                style='primary',
+                                color='#000000',
+                                height='sm'
+                            )
+                        ]
+                    )
+                ],
+                paddingAll='20px',
                 backgroundColor='#ffffff'
             )
         )
@@ -362,8 +423,8 @@ def create_game_result_flex(result_text: str, stats: str) -> FlexSendMessage:
 
 # === حالات المستخدمين ===
 user_game_state: Dict[str, dict] = {}
-user_proverb_state: Dict[str, dict] = {}
 user_riddle_state: Dict[str, dict] = {}
+user_sessions: Dict[str, dict] = {}
 
 # === خريطة الأوامر ===
 COMMANDS_MAP = {
@@ -371,7 +432,6 @@ COMMANDS_MAP = {
     "تحدي":["تحدي","تحديات","تحد"],
     "اعتراف":["اعتراف","اعترافات"],
     "أكثر":["أكثر","اكثر","زيادة"],
-    "أمثال":["أمثال","امثال","مثل"],
     "لغز":["لغز","الغاز","ألغاز"],
     "شعر":["شعر"],
     "اقتباسات":["اقتباسات","اقتباس","قول"]
@@ -384,6 +444,16 @@ def find_command(text:str) -> Optional[str]:
             return key
     return None
 
+# === دالة الحصول على اسم المستخدم ===
+def get_user_display_name(user_id: str) -> str:
+    """الحصول على اسم المستخدم من LINE"""
+    try:
+        profile = line_bot_api.get_profile(user_id)
+        return profile.display_name
+    except Exception as e:
+        logger.error(f"خطأ في الحصول على اسم المستخدم: {e}")
+        return "المستخدم"
+
 # === دوال الألعاب ===
 def calculate_result(answers: List[str], game_index: int) -> tuple:
     count = {"أ":0,"ب":0,"ج":0}
@@ -392,15 +462,15 @@ def calculate_result(answers: List[str], game_index: int) -> tuple:
     most_common = max(count, key=count.get)
     game_key = f"لعبة{game_index+1}"
     result_text = content_manager.detailed_results.get(game_key,{}).get(
-        most_common,f"✅ إجابتك الأكثر: {most_common}\n\nنتيجتك تعكس شخصية فريدة!"
+        most_common,f"إجابتك الأكثر: {most_common}\n\nنتيجتك تعكس شخصية فريدة!"
     )
-    stats = f"📊 إحصائياتك: أ: {count['أ']} | ب: {count['ب']} | ج: {count['ج']}"
+    stats = f"أ: {count['أ']}  •  ب: {count['ب']}  •  ج: {count['ج']}"
     return result_text, stats
 
-def handle_game_selection(event, user_id: str, num: int):
-    if 1 <= num <= len(content_manager.games_list):
-        game_index = num - 1
-        user_game_state[user_id] = {"game_index": game_index, "question_index": 0, "answers": []}
+def handle_game_selection(event,user_id:str,num:int):
+    if 1<=num<=len(content_manager.games_list):
+        game_index = num-1
+        user_game_state[user_id] = {"game_index":game_index,"question_index":0,"answers":[]}
         game = content_manager.games_list[game_index]
         first_q = game["questions"][0]
         progress = f"1/{len(game['questions'])}"
@@ -412,7 +482,7 @@ def handle_game_selection(event, user_id: str, num: int):
         )
         line_bot_api.reply_message(event.reply_token, flex_msg)
 
-def handle_game_answer(event, user_id: str, text: str):
+def handle_game_answer(event,user_id:str,text:str):
     state = user_game_state.get(user_id)
     if not state: return
     
@@ -422,7 +492,7 @@ def handle_game_answer(event, user_id: str, text: str):
     if answer in ["أ","ب","ج"]:
         state["answers"].append(answer)
         game = content_manager.games_list[state["game_index"]]
-        state["question_index"] += 1
+        state["question_index"] +=1
         
         if state["question_index"] < len(game["questions"]):
             q = game["questions"][state["question_index"]]
@@ -436,64 +506,142 @@ def handle_game_answer(event, user_id: str, text: str):
             line_bot_api.reply_message(event.reply_token, flex_msg)
         else:
             result_text, stats = calculate_result(state["answers"], state["game_index"])
-            flex_msg = create_game_result_flex(result_text, stats)
+            username = get_user_display_name(user_id)
+            flex_msg = create_game_result_flex(result_text, stats, username)
             line_bot_api.reply_message(event.reply_token, flex_msg)
             del user_game_state[user_id]
 
 # === دوال المحتوى ===
 def handle_content_command(event, command: str):
-    if command == "أمثال":
-        proverb = content_manager.get_proverb()
-        if not proverb:
-            content = "⚠️ لا توجد أمثال متاحة حالياً."
-        else:
-            user_proverb_state[event.source.user_id] = proverb
-            content = f"📜 المثل:\n\n{proverb['question']}\n\n━━━━━━━━━━━━━━━\n💡 اكتب (جاوب) لمعرفة المعنى"
-    elif command == "لغز":
+    user_id = event.source.user_id
+    username = get_user_display_name(user_id)
+    
+    if command=="لغز":
         riddle = content_manager.get_riddle()
         if not riddle:
-            content = "⚠️ لا توجد ألغاز متاحة حالياً."
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text="لا توجد ألغاز متاحة حالياً.", quick_reply=create_main_menu())
+            )
         else:
-            user_riddle_state[event.source.user_id] = riddle
-            content = f"🧩 اللغز:\n\n{riddle['question']}\n\n━━━━━━━━━━━━━━━\n💡 اكتب (لمح) للتلميح\n✅ اكتب (جاوب) للإجابة"
-    elif command == "أكثر":
-        question = content_manager.get_more_question()
-        content = f"✨ سؤال محير:\n\n{question}\n\n━━━━━━━━━━━━━━━" if question else "⚠️ لا توجد أسئلة متاحة."
-    elif command == "شعر":
+            user_riddle_state[user_id] = riddle
+            flex_msg = create_riddle_flex(riddle)
+            line_bot_api.reply_message(event.reply_token, flex_msg)
+            
+    elif command=="شعر":
         poem = content_manager.get_poem()
-        content = f"{poem}\n\n━━━━━━━━━━━━━━━" if poem else "⚠️ لا يوجد شعر متاح."
-    elif command == "اقتباسات":
+        if not poem:
+            content = "لا يوجد شعر متاح حالياً."
+        else:
+            content = f"{poem.get('text', '')}\n\n— {poem.get('poet', 'مجهول')}"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=content, quick_reply=create_main_menu())
+        )
+            
+    elif command=="اقتباسات":
         quote = content_manager.get_quote()
-        content = f"{quote}\n\n━━━━━━━━━━━━━━━" if quote else "⚠️ لا توجد اقتباسات متاحة."
+        if not quote:
+            content = "لا توجد اقتباسات متاحة حالياً."
+        else:
+            content = f'"{quote.get("text", "")}"\n\n— {quote.get("author", "مجهول")}'
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=content, quick_reply=create_main_menu())
+        )
+            
+    elif command=="أكثر":
+        question = content_manager.get_more_question()
+        content = question if question else "لا توجد أسئلة متاحة في قسم 'أكثر'."
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"{username}\n\n{content}", quick_reply=create_main_menu())
+        )
+            
     else:
-        emoji_map = {"سؤال": "❓", "تحدي": "🎯", "اعتراف": "💬"}
-        emoji = emoji_map.get(command, "📌")
         text_content = content_manager.get_content(command)
-        content = f"{emoji} {command}:\n\n{text_content}\n\n━━━━━━━━━━━━━━━" if text_content else f"⚠️ لا توجد بيانات متاحة."
-    
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=content, quick_reply=create_main_menu()))
+        content = text_content if text_content else f"لا توجد بيانات متاحة في قسم '{command}' حالياً."
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=f"{username}\n\n{content}", quick_reply=create_main_menu())
+        )
 
 def handle_answer_command(event, user_id: str):
-    if user_id in user_proverb_state:
-        proverb = user_proverb_state.pop(user_id)
-        msg = f"✅ معنى المثل:\n\n{proverb['answer']}\n\n━━━━━━━━━━━━━━━"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
-    elif user_id in user_riddle_state:
+    if user_id in user_riddle_state:
         riddle = user_riddle_state.pop(user_id)
-        msg = f"✅ الإجابة الصحيحة:\n\n{riddle['answer']}\n\n━━━━━━━━━━━━━━━"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+        msg = f"الإجابة الصحيحة:\n\n{riddle['answer']}"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=msg, quick_reply=create_main_menu())
+        )
 
 def handle_hint_command(event, user_id: str):
     if user_id in user_riddle_state:
         riddle = user_riddle_state[user_id]
         hint = riddle.get('hint','لا يوجد تلميح')
-        msg = f"💡 التلميح:\n\n{hint}\n\n━━━━━━━━━━━━━━━"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+        msg = f"التلميح:\n\n{hint}"
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=msg, quick_reply=create_main_menu())
+        )
+
+# === دوال لعبة الفروقات ===
+def handle_difference_game(event):
+    """بدء لعبة الفروقات"""
+    challenge = get_difference_challenge()
+    user_sessions[event.source.user_id] = {
+        "game": "differences",
+        "answer": challenge["answer"]
+    }
+    
+    line_bot_api.reply_message(
+        event.reply_token,
+        [
+            TextSendMessage(
+                text="لعبة الفروقات\n\nشاهد الصورتين بتركيز\nكم فرق تجد بينهما؟\n\nأرسل الرقم فقط",
+                quick_reply=create_main_menu()
+            ),
+            ImageSendMessage(
+                original_content_url=challenge["original"],
+                preview_image_url=challenge["original"]
+            ),
+            ImageSendMessage(
+                original_content_url=challenge["changed"],
+                preview_image_url=challenge["changed"]
+            )
+        ]
+    )
+
+def handle_difference_answer(event, user_id: str, text: str):
+    """معالجة إجابة لعبة الفروقات"""
+    if text.isdigit() and user_id in user_sessions:
+        session = user_sessions.get(user_id)
+        if session and session.get("game") == "differences":
+            correct = session["answer"]
+            user_answer = int(text)
+            username = get_user_display_name(user_id)
+            
+            if user_answer == correct:
+                reply = f"{username}\n\nممتاز! عدد الفروقات صحيح: {correct}\n\nلديك عين ثاقبة!"
+            else:
+                diff = abs(user_answer - correct)
+                if diff == 1:
+                    reply = f"{username}\n\nقريب جداً!\n\nالعدد الصحيح: {correct}\nأنت كنت قريب بفرق واحد فقط!"
+                else:
+                    reply = f"{username}\n\nحاول مرة أخرى\n\nالعدد الصحيح: {correct}\nكان هناك فرق في العدد"
+            
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=reply, quick_reply=create_main_menu())
+            )
+            del user_sessions[user_id]
+            return True
+    return False
 
 # === Routes ===
 @app.route("/", methods=["GET"])
 def home():
-    return "✅ البوت يعمل بنجاح!", 200
+    return "البوت يعمل بنجاح!", 200
 
 @app.route("/health", methods=["GET"])
 def health_check():
@@ -520,55 +668,74 @@ def handle_message(event):
     text_lower = text.lower()
 
     try:
-        if text_lower in ["مساعدة","help","بداية","start"]:
+        # رسالة الترحيب
+        if text_lower in ["مساعدة","help","بداية","start","مرحبا","السلام عليكم"]:
+            username = get_user_display_name(user_id)
             line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(
-                    text="👋 مرحباً بك!\n\nاختر من القائمة أدناه:",
+                    text=f"مرحباً {username}\n\nاختر من القائمة أدناه:",
                     quick_reply=create_main_menu()
                 )
             )
             return
 
+        # لعبة الفروقات
+        if text_lower in ["فرق","فروقات","الفروقات","لعبة الفروقات"]:
+            handle_difference_game(event)
+            return
+
+        # التحقق من إجابة لعبة الفروقات
+        if handle_difference_answer(event, user_id, text):
+            return
+
+        # البحث عن الأوامر
         command = find_command(text)
         if command:
             handle_content_command(event, command)
             return
 
-        if text_lower in ["جاوب","الجواب","الاجابة","اجابة"]:
+        # أوامر الإجابة
+        if text_lower in ["جاوب","الجواب","الاجابة","اجابة","اظهر"]:
             handle_answer_command(event, user_id)
             return
 
-        if text_lower in ["لمح","تلميح","hint"]:
+        # أوامر التلميح
+        if text_lower in ["لمح","تلميح","hint","ساعدني"]:
             handle_hint_command(event, user_id)
             return
 
-        if text_lower in ["لعبه","لعبة","العاب","ألعاب","game"]:
+        # عرض قائمة الألعاب
+        if text_lower in ["لعبه","لعبة","العاب","ألعاب","game","games"]:
             if content_manager.games_list:
-                flex_msg = create_games_list_flex(content_manager.games_list)
+                flex_msg = create_game_list_flex(content_manager.games_list)
                 line_bot_api.reply_message(event.reply_token, flex_msg)
             else:
                 line_bot_api.reply_message(
                     event.reply_token,
                     TextSendMessage(
-                        text="⚠️ لا توجد ألعاب متاحة حالياً.",
+                        text="لا توجد ألعاب متاحة حالياً.",
                         quick_reply=create_main_menu()
                     )
                 )
             return
 
-        if text.isdigit():
+        # اختيار لعبة برقم
+        if text.isdigit() and user_id not in user_sessions:
             handle_game_selection(event, user_id, int(text))
             return
 
+        # الإجابة على أسئلة اللعبة
         if user_id in user_game_state:
             handle_game_answer(event, user_id, text)
             return
 
+        # رسالة افتراضية للرسائل غير المعروفة
+        username = get_user_display_name(user_id)
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(
-                text="👋 مرحباً! اختر من الأزرار أدناه",
+                text=f"مرحباً {username}\n\nاختر من القائمة أدناه",
                 quick_reply=create_main_menu()
             )
         )
@@ -579,7 +746,7 @@ def handle_message(event):
             line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(
-                    text="⚠️ حدث خطأ، يرجى المحاولة مرة أخرى",
+                    text="حدث خطأ، يرجى المحاولة مرة أخرى",
                     quick_reply=create_main_menu()
                 )
             )
