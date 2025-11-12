@@ -10,10 +10,10 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, ImageSendMessage,
-    QuickReply, QuickReplyButton, MessageAction
+    QuickReply, QuickReplyButton, MessageAction, FlexSendMessage
 )
 
-# === Logging ===
+# === إعداد Logging ===
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# === Environment Variables ===
+# === إعداد متغيرات البيئة ===
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
@@ -31,27 +31,32 @@ if not LINE_CHANNEL_ACCESS_TOKEN or not LINE_CHANNEL_SECRET:
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# === Locks ===
+# === Locks للتزامن ===
 content_lock = Lock()
 stats_lock = Lock()
 
-# === Safe reply helper ===
+# === دالة آمنة للرد ===
 def safe_reply(reply_token: str, messages):
     try:
-        if isinstance(messages, list):
+        if reply_token and reply_token != "00000000000000000000000000000000":
             line_bot_api.reply_message(reply_token, messages)
-        else:
-            line_bot_api.reply_message(reply_token, messages)
+            return True
     except LineBotApiError as e:
-        logger.error(f"⚠ خطأ في الرد: {e}")
+        if "Invalid reply token" in str(e):
+            logger.warning("⚠ Reply token منتهي الصلاحية")
+        else:
+            logger.error(f"✗ خطأ في LINE API: {e}")
+    except Exception as e:
+        logger.error(f"✗ خطأ غير متوقع: {e}")
+    return False
 
-# === User Stats ===
+# === نظام الإحصائيات ===
 class UserStats:
     def __init__(self):
         self.stats: Dict[str, dict] = {}
-        self.stats_file = "user_stats.json"
+        self.stats_file = "/content/user_stats.json"
         self.load_stats()
-    
+
     def load_stats(self):
         if os.path.exists(self.stats_file):
             try:
@@ -60,14 +65,14 @@ class UserStats:
                 logger.info(f"✓ تم تحميل إحصائيات {len(self.stats)} مستخدم")
             except Exception as e:
                 logger.error(f"خطأ في تحميل الإحصائيات: {e}")
-    
+
     def save_stats(self):
         try:
             with open(self.stats_file, 'w', encoding='utf-8') as f:
                 json.dump(self.stats, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"خطأ في حفظ الإحصائيات: {e}")
-    
+
     def get_user_stats(self, user_id: str) -> dict:
         with stats_lock:
             if user_id not in self.stats:
@@ -81,7 +86,7 @@ class UserStats:
                     "achievements": []
                 }
             return self.stats[user_id]
-    
+
     def update_stat(self, user_id: str, stat_key: str, increment: int = 1):
         with stats_lock:
             stats = self.get_user_stats(user_id)
@@ -90,7 +95,7 @@ class UserStats:
             new_achievements = self.check_achievements(user_id)
             self.save_stats()
             return new_achievements
-    
+
     def add_points(self, user_id: str, points: int):
         with stats_lock:
             stats = self.get_user_stats(user_id)
@@ -98,7 +103,7 @@ class UserStats:
             new_achievements = self.check_achievements(user_id)
             self.save_stats()
             return new_achievements
-    
+
     def check_achievements(self, user_id: str):
         stats = self.stats[user_id]
         achievements = stats.get("achievements", [])
@@ -118,9 +123,10 @@ class UserStats:
 
 user_stats = UserStats()
 
-# === Content Manager ===
+# === مدير المحتوى ===
 class ContentManager:
     def __init__(self):
+        self.content_path = "/content/" if os.path.exists("/content/") else "./"
         self.content_files: Dict[str, List[str]] = {}
         self.more_questions: List[str] = []
         self.emoji_puzzles: List[dict] = []
@@ -129,15 +135,20 @@ class ContentManager:
         self.poems_list: List[dict] = []
         self.quotes_list: List[dict] = []
         self.daily_tips: List[dict] = []
+        self.proverbs_list: List[dict] = []
         self.detailed_results: Dict = {}
         self.used_indices: Dict[str, List[int]] = {}
 
+    def get_file_path(self, filename: str) -> str:
+        return os.path.join(self.content_path, filename)
+
     def load_file_lines(self, filename: str) -> List[str]:
-        if not os.path.exists(filename):
-            logger.warning(f"⚠ الملف غير موجود: {filename}")
+        filepath = self.get_file_path(filename)
+        if not os.path.exists(filepath):
+            logger.warning(f"⚠ الملف غير موجود: {filepath}")
             return []
         try:
-            with open(filename, "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip()]
                 logger.info(f"✓ تم تحميل {len(lines)} سطر من {filename}")
                 return lines
@@ -146,26 +157,29 @@ class ContentManager:
             return []
 
     def load_json_file(self, filename: str) -> Union[dict, list]:
-        if not os.path.exists(filename):
-            logger.warning(f"⚠ الملف غير موجود: {filename}")
-            return [] if filename.endswith(".json") else {}
+        filepath = self.get_file_path(filename)
+        if not os.path.exists(filepath):
+            logger.warning(f"⚠ الملف غير موجود: {filepath}")
+            return [] if filename.endswith("s.json") else {}
         try:
-            with open(filename, "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 logger.info(f"✓ تم تحميل {filename}")
                 return data
         except Exception as e:
             logger.error(f"✗ خطأ في تحليل {filename}: {e}")
-            return [] if filename.endswith(".json") else {}
+            return [] if filename.endswith("s.json") else {}
 
     def initialize(self):
+        logger.info(f"📁 مسار المحتوى: {self.content_path}")
+        # الملفات النصية
         self.content_files = {
             "سؤال": self.load_file_lines("questions.txt"),
             "تحدي": self.load_file_lines("challenges.txt"),
             "اعتراف": self.load_file_lines("confessions.txt"),
         }
         self.used_indices = {key: [] for key in self.content_files.keys()}
-        for key in ["أكثر", "ايموجي", "لغز", "شعر", "اقتباسات", "نصيحة"]:
+        for key in ["أكثر", "ايموجي", "لغز", "شعر", "اقتباسات", "نصيحة", "امثال"]:
             self.used_indices[key] = []
 
         self.more_questions = self.load_file_lines("more_questions.txt")
@@ -175,13 +189,12 @@ class ContentManager:
         self.poems_list = self.load_json_file("poems.json")
         self.quotes_list = self.load_json_file("quotes.json")
         self.daily_tips = self.load_json_file("tips.json")
-
+        self.proverbs_list = self.load_json_file("proverbs.json")
         data = self.load_json_file("personality_games.json")
         if isinstance(data, dict):
             self.games_list = [data[key] for key in sorted(data.keys())]
         else:
             self.games_list = []
-
         logger.info("✓ تم تهيئة جميع الملفات بنجاح")
 
     def get_random_index(self, command: str, max_length: int) -> int:
@@ -193,10 +206,16 @@ class ContentManager:
             self.used_indices[command].append(index)
             return index
 
+    def get_content(self, command: str) -> Optional[str]:
+        file_list = self.content_files.get(command, [])
+        if not file_list: return None
+        index = self.get_random_index(command, len(file_list))
+        return file_list[index]
+
 content_manager = ContentManager()
 content_manager.initialize()
 
-# === QuickReply Menu ===
+# === QuickReply ===
 def create_main_menu() -> QuickReply:
     return QuickReply(items=[
         QuickReplyButton(action=MessageAction(label="◆ سؤال", text="سؤال")),
@@ -207,36 +226,36 @@ def create_main_menu() -> QuickReply:
         QuickReplyButton(action=MessageAction(label="◆ لغز", text="لغز")),
         QuickReplyButton(action=MessageAction(label="◆ شعر", text="شعر")),
         QuickReplyButton(action=MessageAction(label="◆ اقتباس", text="اقتباسات")),
-        QuickReplyButton(action=MessageAction(label="◆ تحليل شخصية", text="تحليل")),
+        QuickReplyButton(action=MessageAction(label="◆ تحليل", text="تحليل")),
         QuickReplyButton(action=MessageAction(label="◆ نصيحة", text="نصيحة")),
-        QuickReplyButton(action=MessageAction(label="◆ إحصائياتي", text="احصائياتي")),
+        QuickReplyButton(action=MessageAction(label="◆ أمثال", text="امثال"))
     ])
 
-# === Routes ===
-@app.route("/", methods=["GET"])
-def home():
-    return "✓ البوت يعمل بنجاح", 200
-
-@app.route("/health", methods=["GET"])
-def health_check():
-    return {"status": "healthy", "service": "line-bot", "version": "3.0"}, 200
-
-@app.route("/callback", methods=["POST"])
+# === Flask Webhook ===
+@app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers.get("X-Line-Signature", "")
+    signature = request.headers.get('X-Line-Signature', '')
     body = request.get_data(as_text=True)
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        logger.error("✗ توقيع غير صالح")
         abort(400)
-    except Exception as e:
-        logger.error(f"✗ خطأ في معالجة الطلب: {e}")
-        abort(500)
-    return "OK"
+    return 'OK'
 
-# === Run ===
+# === Handle Messages ===
+@handler.add(MessageEvent, message=TextMessage)
+def handle_text_message(event):
+    text = event.message.text.strip()
+    reply_token = event.reply_token
+    if text in content_manager.content_files:
+        content = content_manager.get_content(text)
+        if content:
+            safe_reply(reply_token, TextSendMessage(text=content, quick_reply=create_main_menu()))
+        else:
+            safe_reply(reply_token, TextSendMessage(text="لا يوجد محتوى متاح حالياً.", quick_reply=create_main_menu()))
+    else:
+        safe_reply(reply_token, TextSendMessage(text="اختر أحد الخيارات المتاحة.", quick_reply=create_main_menu()))
+
+# === Run App ===
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    logger.info(f"✓ البوت يعمل على المنفذ {port}")
-    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
