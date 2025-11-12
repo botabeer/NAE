@@ -144,25 +144,19 @@ class ContentManager:
 content_manager = ContentManager()
 content_manager.initialize()
 
-# === القوائم الثابتة ===
-def create_main_menu() -> QuickReply:
-    """القائمة الرئيسية الثابتة"""
+# === القوائم الثابتة - أزرار دائمة ===
+def create_permanent_menu() -> QuickReply:
+    """القائمة الدائمة التي تظهر مع كل رسالة"""
     return QuickReply(items=[
         QuickReplyButton(action=MessageAction(label="❓ سؤال", text="سؤال")),
         QuickReplyButton(action=MessageAction(label="🎯 تحدي", text="تحدي")),
         QuickReplyButton(action=MessageAction(label="💬 اعتراف", text="اعتراف")),
         QuickReplyButton(action=MessageAction(label="✨ أكثر", text="أكثر")),
         QuickReplyButton(action=MessageAction(label="🎮 لعبة", text="لعبه")),
-    ])
-
-def create_secondary_menu() -> QuickReply:
-    """القائمة الثانوية"""
-    return QuickReply(items=[
         QuickReplyButton(action=MessageAction(label="📝 شعر", text="شعر")),
-        QuickReplyButton(action=MessageAction(label="💭 اقتباسات", text="اقتباسات")),
+        QuickReplyButton(action=MessageAction(label="💭 اقتباس", text="اقتباسات")),
         QuickReplyButton(action=MessageAction(label="🧩 لغز", text="لغز")),
         QuickReplyButton(action=MessageAction(label="📜 أمثال", text="أمثال")),
-        QuickReplyButton(action=MessageAction(label="🏠 القائمة", text="مساعدة")),
     ])
 
 # === Flex Messages الاحترافية ===
@@ -179,10 +173,10 @@ def create_welcome_flex():
                         text='مرحباً بك',
                         weight='bold',
                         size='xxl',
-                        color='#1a1a1a',
+                        color='#000000',
                         align='center'
                     ),
-                    SeparatorComponent(margin='md', color='#e0e0e0'),
+                    SeparatorComponent(margin='md', color='#eeeeee'),
                     BoxComponent(
                         layout='vertical',
                         margin='lg',
@@ -228,308 +222,14 @@ def create_menu_button(label: str, action_text: str):
             ButtonComponent(
                 action=FlexMessageAction(label=label, text=action_text),
                 style='secondary',
-                color='#2c2c2c',
+                color='#000000',
                 height='sm'
             )
         ]
     )
 
-def create_content_flex(title: str, content: str, emoji: str, category: str):
-    """عرض المحتوى بشكل احترافي"""
-    return FlexSendMessage(
-        alt_text=f"{emoji} {title}",
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                contents=[
-                    BoxComponent(
-                        layout='horizontal',
-                        contents=[
-                            TextComponent(
-                                text=emoji,
-                                size='xl',
-                                flex=0
-                            ),
-                            TextComponent(
-                                text=title,
-                                weight='bold',
-                                size='lg',
-                                color='#1a1a1a',
-                                margin='md',
-                                flex=1
-                            )
-                        ]
-                    ),
-                    SeparatorComponent(margin='md', color='#e0e0e0'),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        spacing='md',
-                        contents=[
-                            TextComponent(
-                                text=content,
-                                size='md',
-                                color='#333333',
-                                wrap=True,
-                                lineSpacing='8px'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=f'• {category}',
-                                size='xs',
-                                color='#999999',
-                                align='center'
-                            )
-                        ]
-                    )
-                ],
-                paddingAll='20px',
-                backgroundColor='#ffffff'
-            ),
-            styles={
-                'body': {
-                    'backgroundColor': '#ffffff'
-                }
-            }
-        )
-    )
-
-def create_poem_flex(poem_data: dict):
-    """عرض الشعر بتصميم أنيق"""
-    return FlexSendMessage(
-        alt_text="📝 شعر",
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                contents=[
-                    TextComponent(
-                        text='📝 شعــر',
-                        weight='bold',
-                        size='xl',
-                        color='#1a1a1a',
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color='#e0e0e0'),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(
-                                text=poem_data.get('text', ''),
-                                size='md',
-                                color='#1a1a1a',
-                                wrap=True,
-                                align='center',
-                                lineSpacing='10px',
-                                weight='bold'
-                            )
-                        ],
-                        paddingAll='10px',
-                        backgroundColor='#f0f0f0',
-                        cornerRadius='8px'
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(
-                                text=f"— {poem_data.get('poet', 'مجهول')}",
-                                size='sm',
-                                color='#666666',
-                                align='end',
-                                style='italic'
-                            )
-                        ]
-                    )
-                ],
-                paddingAll='20px',
-                backgroundColor='#ffffff'
-            )
-        )
-    )
-
-def create_quote_flex(quote_data: dict):
-    """عرض الاقتباس بتصميم راقي"""
-    return FlexSendMessage(
-        alt_text="💭 اقتباس",
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                contents=[
-                    TextComponent(
-                        text='💭',
-                        size='xxl',
-                        align='center',
-                        color='#666666'
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(
-                                text=f'"{quote_data.get("text", "")}"',
-                                size='lg',
-                                color='#1a1a1a',
-                                wrap=True,
-                                align='center',
-                                lineSpacing='8px'
-                            )
-                        ]
-                    ),
-                    SeparatorComponent(margin='lg', color='#e0e0e0'),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='md',
-                        contents=[
-                            TextComponent(
-                                text=quote_data.get('author', 'مجهول'),
-                                size='sm',
-                                color='#999999',
-                                align='center',
-                                weight='bold'
-                            )
-                        ]
-                    )
-                ],
-                paddingAll='25px',
-                backgroundColor='#fafafa'
-            )
-        )
-    )
-
-def create_riddle_flex(riddle: dict):
-    """عرض اللغز بتصميم تفاعلي"""
-    return FlexSendMessage(
-        alt_text="🧩 لغز",
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                contents=[
-                    BoxComponent(
-                        layout='horizontal',
-                        contents=[
-                            TextComponent(
-                                text='🧩',
-                                size='xl',
-                                flex=0
-                            ),
-                            TextComponent(
-                                text='لغـــز',
-                                weight='bold',
-                                size='xl',
-                                color='#1a1a1a',
-                                margin='md'
-                            )
-                        ]
-                    ),
-                    SeparatorComponent(margin='md', color='#e0e0e0'),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(
-                                text=riddle['question'],
-                                size='md',
-                                color='#2c2c2c',
-                                wrap=True,
-                                lineSpacing='8px'
-                            )
-                        ],
-                        paddingAll='15px',
-                        backgroundColor='#f5f5f5',
-                        cornerRadius='8px'
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='xl',
-                        spacing='sm',
-                        contents=[
-                            ButtonComponent(
-                                action=FlexMessageAction(label='💡 تلميح', text='لمح'),
-                                style='secondary',
-                                color='#666666',
-                                height='sm'
-                            ),
-                            ButtonComponent(
-                                action=FlexMessageAction(label='✅ الإجابة', text='جاوب'),
-                                style='primary',
-                                color='#2c2c2c',
-                                height='sm'
-                            )
-                        ]
-                    )
-                ],
-                paddingAll='20px',
-                backgroundColor='#ffffff'
-            )
-        )
-    )
-
-def create_proverb_flex(proverb: dict):
-    """عرض المثل بتصميم كلاسيكي"""
-    return FlexSendMessage(
-        alt_text="📜 مثل",
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                contents=[
-                    TextComponent(
-                        text='📜 مثــل شعبــي',
-                        weight='bold',
-                        size='xl',
-                        color='#1a1a1a',
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color='#d4af37'),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(
-                                text=proverb['question'],
-                                size='lg',
-                                color='#2c2c2c',
-                                wrap=True,
-                                align='center',
-                                weight='bold',
-                                lineSpacing='10px'
-                            )
-                        ],
-                        paddingAll='15px',
-                        backgroundColor='#f9f9f9',
-                        cornerRadius='8px'
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='xl',
-                        contents=[
-                            ButtonComponent(
-                                action=FlexMessageAction(label='✨ معنى المثل', text='جاوب'),
-                                style='primary',
-                                color='#1a1a1a',
-                                height='sm'
-                            )
-                        ]
-                    )
-                ],
-                paddingAll='20px',
-                backgroundColor='#ffffff'
-            )
-        )
-    )
-
 def create_game_list_flex(games: list):
-    """عرض قائمة الألعاب بتصميم جذاب"""
+    """عرض قائمة الألعاب بتصميم جذاب - Flex فقط"""
     game_buttons = []
     for i, game in enumerate(games[:10], 1):
         game_buttons.append(
@@ -539,7 +239,7 @@ def create_game_list_flex(games: list):
                     text=str(i)
                 ),
                 style='secondary',
-                color='#2c2c2c',
+                color='#000000',
                 height='sm'
             )
         )
@@ -555,10 +255,10 @@ def create_game_list_flex(games: list):
                         text='🎮 الألعاب المتاحة',
                         weight='bold',
                         size='xl',
-                        color='#1a1a1a',
+                        color='#000000',
                         align='center'
                     ),
-                    SeparatorComponent(margin='md', color='#e0e0e0'),
+                    SeparatorComponent(margin='md', color='#eeeeee'),
                     BoxComponent(
                         layout='vertical',
                         margin='lg',
@@ -573,14 +273,14 @@ def create_game_list_flex(games: list):
     )
 
 def create_game_question_flex(game_title: str, question: dict, progress: str):
-    """عرض سؤال اللعبة بتصميم تفاعلي"""
+    """عرض سؤال اللعبة بتصميم تفاعلي - Flex فقط"""
     option_buttons = []
     for key, value in question['options'].items():
         option_buttons.append(
             ButtonComponent(
                 action=FlexMessageAction(label=f"{key}. {value}", text=key),
                 style='secondary',
-                color='#2c2c2c',
+                color='#000000',
                 height='sm'
             )
         )
@@ -604,20 +304,20 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
                                 text=game_title,
                                 weight='bold',
                                 size='lg',
-                                color='#1a1a1a',
+                                color='#000000',
                                 margin='md',
                                 flex=1
                             ),
                             TextComponent(
                                 text=progress,
                                 size='xs',
-                                color='#999999',
+                                color='#666666',
                                 flex=0,
                                 align='end'
                             )
                         ]
                     ),
-                    SeparatorComponent(margin='md', color='#e0e0e0'),
+                    SeparatorComponent(margin='md', color='#eeeeee'),
                     BoxComponent(
                         layout='vertical',
                         margin='lg',
@@ -625,13 +325,13 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
                             TextComponent(
                                 text=question['question'],
                                 size='md',
-                                color='#2c2c2c',
+                                color='#000000',
                                 wrap=True,
                                 lineSpacing='8px'
                             )
                         ],
                         paddingAll='12px',
-                        backgroundColor='#f8f8f8',
+                        backgroundColor='#eeeeee',
                         cornerRadius='8px'
                     ),
                     BoxComponent(
@@ -648,7 +348,7 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
     )
 
 def create_game_result_flex(result_text: str, stats: str):
-    """عرض نتيجة اللعبة بتصميم احتفالي"""
+    """عرض نتيجة اللعبة بتصميم احتفالي - Flex فقط"""
     return FlexSendMessage(
         alt_text="🏆 النتيجة",
         contents=BubbleContainer(
@@ -665,11 +365,11 @@ def create_game_result_flex(result_text: str, stats: str):
                         text='نتيجتك',
                         weight='bold',
                         size='xl',
-                        color='#1a1a1a',
+                        color='#000000',
                         align='center',
                         margin='md'
                     ),
-                    SeparatorComponent(margin='lg', color='#e0e0e0'),
+                    SeparatorComponent(margin='lg', color='#eeeeee'),
                     BoxComponent(
                         layout='vertical',
                         margin='lg',
@@ -677,13 +377,13 @@ def create_game_result_flex(result_text: str, stats: str):
                             TextComponent(
                                 text=result_text,
                                 size='md',
-                                color='#2c2c2c',
+                                color='#000000',
                                 wrap=True,
                                 lineSpacing='8px'
                             )
                         ],
                         paddingAll='15px',
-                        backgroundColor='#f5f5f5',
+                        backgroundColor='#eeeeee',
                         cornerRadius='8px'
                     ),
                     BoxComponent(
@@ -706,7 +406,7 @@ def create_game_result_flex(result_text: str, stats: str):
                             ButtonComponent(
                                 action=FlexMessageAction(label='🎮 لعبة جديدة', text='لعبه'),
                                 style='primary',
-                                color='#2c2c2c',
+                                color='#000000',
                                 height='sm'
                             )
                         ]
@@ -798,7 +498,11 @@ def handle_game_answer(event,user_id:str,text:str):
             line_bot_api.reply_message(event.reply_token, flex_msg)
             del user_game_state[user_id]
 
-# === دوال المحتوى ===
+# === دوال المحتوى - عرض نصي أنيق ===
+def format_text_content(emoji: str, title: str, content: str) -> str:
+    """تنسيق المحتوى النصي بشكل أنيق"""
+    return f"{emoji} {title}\n{'─' * 25}\n\n{content}\n\n{'─' * 25}"
+
 def handle_content_command(event, command: str):
     user_id = event.source.user_id
     
@@ -807,215 +511,140 @@ def handle_content_command(event, command: str):
         if not proverb:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="⚠️ لا توجد أمثال متاحة حالياً.", quick_reply=create_main_menu())
+                TextSendMessage(
+                    text="⚠️ لا توجد أمثال متاحة حالياً.",
+                    quick_reply=create_permanent_menu()
+                )
             )
         else:
             user_proverb_state[user_id] = proverb
-            flex_msg = create_proverb_flex(proverb)
-            line_bot_api.reply_message(event.reply_token, flex_msg)
+            text = format_text_content("📜", "مثل شعبي", proverb['question'])
+            text += "\n\n💡 اكتب (جاوب) لمعرفة معنى المثل"
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=text, quick_reply=create_permanent_menu())
+            )
             
     elif command=="لغز":
         riddle = content_manager.get_riddle()
         if not riddle:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="⚠️ لا توجد ألغاز متاحة حالياً.", quick_reply=create_main_menu())
+                TextSendMessage(
+                    text="⚠️ لا توجد ألغاز متاحة حالياً.",
+                    quick_reply=create_permanent_menu()
+                )
             )
         else:
             user_riddle_state[user_id] = riddle
-            flex_msg = create_riddle_flex(riddle)
-            line_bot_api.reply_message(event.reply_token, flex_msg)
+            text = format_text_content("🧩", "لغز", riddle['question'])
+            text += "\n\n💡 اكتب (لمح) للحصول على تلميح"
+            text += "\n✅ اكتب (جاوب) لمعرفة الإجابة"
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=text, quick_reply=create_permanent_menu())
+            )
             
     elif command=="شعر":
         poem = content_manager.get_poem()
         if not poem:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="⚠️ لا يوجد شعر متاح حالياً.", quick_reply=create_secondary_menu())
+                TextSendMessage(
+                    text="⚠️ لا يوجد شعر متاح حالياً.",
+                    quick_reply=create_permanent_menu()
+                )
             )
         else:
-            flex_msg = create_poem_flex(poem)
-            line_bot_api.reply_message(event.reply_token, flex_msg)
+            text = f"📝 شعر\n{'─' * 25}\n\n{poem.get('text', '')}\n\n— {poem.get('poet', 'مجهول')}\n{'─' * 25}"
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=text, quick_reply=create_permanent_menu())
+            )
             
     elif command=="اقتباسات":
         quote = content_manager.get_quote()
         if not quote:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="⚠️ لا توجد اقتباسات متاحة حالياً.", quick_reply=create_secondary_menu())
+                TextSendMessage(
+                    text="⚠️ لا توجد اقتباسات متاحة حالياً.",
+                    quick_reply=create_permanent_menu()
+                )
             )
         else:
-            flex_msg = create_quote_flex(quote)
-            line_bot_api.reply_message(event.reply_token, flex_msg)
+            text = f"💭 اقتباس\n{'─' * 25}\n\n\"{quote.get('text', '')}\"\n\n— {quote.get('author', 'مجهول')}\n{'─' * 25}"
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=text, quick_reply=create_permanent_menu())
+            )
             
     elif command=="أكثر":
         question = content_manager.get_more_question()
         if not question:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text="⚠️ لا توجد أسئلة متاحة في قسم 'أكثر'.", quick_reply=create_main_menu())
+                TextSendMessage(
+                    text="⚠️ لا توجد أسئلة متاحة في قسم 'أكثر'.",
+                    quick_reply=create_permanent_menu()
+                )
             )
         else:
-            flex_msg = create_content_flex("سؤال محير", question, "✨", "أكثر")
-            line_bot_api.reply_message(event.reply_token, flex_msg)
+            text = format_text_content("✨", "سؤال محير", question)
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=text, quick_reply=create_permanent_menu())
+            )
             
     else:
         content = content_manager.get_content(command)
         if not content:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text=f"⚠️ لا توجد بيانات متاحة في قسم '{command}' حالياً.", quick_reply=create_main_menu())
+                TextSendMessage(
+                    text=f"⚠️ لا توجد بيانات متاحة في قسم '{command}' حالياً.",
+                    quick_reply=create_permanent_menu()
+                )
             )
         else:
             emoji_map = {"سؤال": "❓", "تحدي": "🎯", "اعتراف": "💬"}
             title_map = {"سؤال": "سؤال", "تحدي": "تحدي", "اعتراف": "اعتراف"}
-            flex_msg = create_content_flex(
-                title_map.get(command, command),
-                content,
+            text = format_text_content(
                 emoji_map.get(command, "📌"),
-                command
+                title_map.get(command, command),
+                content
             )
-            line_bot_api.reply_message(event.reply_token, flex_msg)
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=text, quick_reply=create_permanent_menu())
+            )
 
 def handle_answer_command(event, user_id: str):
     if user_id in user_proverb_state:
         proverb = user_proverb_state.pop(user_id)
-        flex_msg = FlexSendMessage(
-            alt_text="✅ معنى المثل",
-            contents=BubbleContainer(
-                direction='rtl',
-                body=BoxComponent(
-                    layout='vertical',
-                    contents=[
-                        TextComponent(
-                            text='✨ معنى المثل',
-                            weight='bold',
-                            size='xl',
-                            color='#1a1a1a',
-                            align='center'
-                        ),
-                        SeparatorComponent(margin='md', color='#d4af37'),
-                        BoxComponent(
-                            layout='vertical',
-                            margin='lg',
-                            contents=[
-                                TextComponent(
-                                    text=proverb['answer'],
-                                    size='md',
-                                    color='#2c2c2c',
-                                    wrap=True,
-                                    lineSpacing='8px'
-                                )
-                            ],
-                            paddingAll='15px',
-                            backgroundColor='#f9f9f9',
-                            cornerRadius='8px'
-                        )
-                    ],
-                    paddingAll='20px',
-                    backgroundColor='#ffffff'
-                )
-            )
+        text = format_text_content("✨", "معنى المثل", proverb['answer'])
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=text, quick_reply=create_permanent_menu())
         )
-        line_bot_api.reply_message(event.reply_token, flex_msg)
         
     elif user_id in user_riddle_state:
         riddle = user_riddle_state.pop(user_id)
-        flex_msg = FlexSendMessage(
-            alt_text="✅ الإجابة",
-            contents=BubbleContainer(
-                direction='rtl',
-                body=BoxComponent(
-                    layout='vertical',
-                    contents=[
-                        TextComponent(
-                            text='✅',
-                            size='xxl',
-                            align='center',
-                            color='#4caf50'
-                        ),
-                        TextComponent(
-                            text='الإجابة الصحيحة',
-                            weight='bold',
-                            size='lg',
-                            color='#1a1a1a',
-                            align='center',
-                            margin='md'
-                        ),
-                        SeparatorComponent(margin='md', color='#e0e0e0'),
-                        BoxComponent(
-                            layout='vertical',
-                            margin='lg',
-                            contents=[
-                                TextComponent(
-                                    text=riddle['answer'],
-                                    size='lg',
-                                    color='#2c2c2c',
-                                    wrap=True,
-                                    align='center',
-                                    weight='bold'
-                                )
-                            ],
-                            paddingAll='15px',
-                            backgroundColor='#f0f8f0',
-                            cornerRadius='8px'
-                        )
-                    ],
-                    paddingAll='20px',
-                    backgroundColor='#ffffff'
-                )
-            )
+        text = format_text_content("✅", "الإجابة الصحيحة", riddle['answer'])
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=text, quick_reply=create_permanent_menu())
         )
-        line_bot_api.reply_message(event.reply_token, flex_msg)
 
 def handle_hint_command(event, user_id: str):
     if user_id in user_riddle_state:
         riddle = user_riddle_state[user_id]
         hint = riddle.get('hint','لا يوجد تلميح')
-        flex_msg = FlexSendMessage(
-            alt_text="💡 تلميح",
-            contents=BubbleContainer(
-                direction='rtl',
-                body=BoxComponent(
-                    layout='vertical',
-                    contents=[
-                        TextComponent(
-                            text='💡',
-                            size='xxl',
-                            align='center'
-                        ),
-                        TextComponent(
-                            text='تلميح',
-                            weight='bold',
-                            size='lg',
-                            color='#1a1a1a',
-                            align='center',
-                            margin='md'
-                        ),
-                        SeparatorComponent(margin='md', color='#e0e0e0'),
-                        BoxComponent(
-                            layout='vertical',
-                            margin='lg',
-                            contents=[
-                                TextComponent(
-                                    text=hint,
-                                    size='md',
-                                    color='#666666',
-                                    wrap=True,
-                                    align='center'
-                                )
-                            ],
-                            paddingAll='15px',
-                            backgroundColor='#fffbf0',
-                            cornerRadius='8px'
-                        )
-                    ],
-                    paddingAll='20px',
-                    backgroundColor='#ffffff'
-                )
-            )
+        text = format_text_content("💡", "تلميح", hint)
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=text, quick_reply=create_permanent_menu())
         )
-        line_bot_api.reply_message(event.reply_token, flex_msg)
 
 # === Routes ===
 @app.route("/", methods=["GET"])
@@ -1068,7 +697,7 @@ def handle_message(event):
             handle_hint_command(event, user_id)
             return
 
-        # عرض قائمة الألعاب
+        # عرض قائمة الألعاب - Flex فقط
         if text_lower in ["لعبه","لعبة","العاب","ألعاب","game","games"]:
             if content_manager.games_list:
                 flex_msg = create_game_list_flex(content_manager.games_list)
@@ -1078,7 +707,7 @@ def handle_message(event):
                     event.reply_token,
                     TextSendMessage(
                         text="⚠️ لا توجد ألعاب متاحة حالياً.",
-                        quick_reply=create_main_menu()
+                        quick_reply=create_permanent_menu()
                     )
                 )
             return
@@ -1097,67 +726,21 @@ def handle_message(event):
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(
-                text="👋 مرحباً! اختر من القائمة أدناه",
-                quick_reply=create_main_menu()
+                text="👋 مرحباً! اختر من الأزرار أدناه",
+                quick_reply=create_permanent_menu()
             )
         )
 
     except Exception as e:
         logger.error(f"خطأ في معالجة الرسالة: {e}", exc_info=True)
         try:
-            error_flex = FlexSendMessage(
-                alt_text="⚠️ خطأ",
-                contents=BubbleContainer(
-                    direction='rtl',
-                    body=BoxComponent(
-                        layout='vertical',
-                        contents=[
-                            TextComponent(
-                                text='⚠️',
-                                size='xxl',
-                                align='center',
-                                color='#ff5252'
-                            ),
-                            TextComponent(
-                                text='عذراً',
-                                weight='bold',
-                                size='lg',
-                                color='#1a1a1a',
-                                align='center',
-                                margin='md'
-                            ),
-                            BoxComponent(
-                                layout='vertical',
-                                margin='lg',
-                                contents=[
-                                    TextComponent(
-                                        text='حدث خطأ، يرجى المحاولة مرة أخرى',
-                                        size='md',
-                                        color='#666666',
-                                        wrap=True,
-                                        align='center'
-                                    )
-                                ]
-                            ),
-                            BoxComponent(
-                                layout='vertical',
-                                margin='xl',
-                                contents=[
-                                    ButtonComponent(
-                                        action=FlexMessageAction(label='🏠 العودة للقائمة', text='مساعدة'),
-                                        style='primary',
-                                        color='#2c2c2c',
-                                        height='sm'
-                                    )
-                                ]
-                            )
-                        ],
-                        paddingAll='20px',
-                        backgroundColor='#ffffff'
-                    )
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(
+                    text="⚠️ عذراً، حدث خطأ\n\nيرجى المحاولة مرة أخرى",
+                    quick_reply=create_permanent_menu()
                 )
             )
-            line_bot_api.reply_message(event.reply_token, error_flex)
         except:
             pass
 
