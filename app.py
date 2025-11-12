@@ -11,9 +11,11 @@ from linebot.exceptions import InvalidSignatureError, LineBotApiError
 from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, ImageSendMessage,
     FlexSendMessage, BubbleContainer, BoxComponent, TextComponent,
-    SeparatorComponent, SpacerComponent, FillerComponent,
+    SeparatorComponent,
     QuickReply, QuickReplyButton, MessageAction
 )
+
+# ملاحظة: SpacerComponent غير مستخدم - تم استبداله بـ create_spacer()
 
 # === إعداد Logging ===
 logging.basicConfig(
@@ -49,6 +51,25 @@ def safe_reply(reply_token, messages):
         logger.error(f"خطأ في إرسال الرسالة: {e}")
     except Exception as e:
         logger.error(f"خطأ غير متوقع: {e}")
+
+# === بديل SpacerComponent - استخدام BoxComponent فارغ ===
+def create_spacer(size="md"):
+    """إنشاء مسافة باستخدام BoxComponent فارغ"""
+    height_map = {
+        "xs": "8px",
+        "sm": "12px", 
+        "md": "16px",
+        "lg": "24px",
+        "xl": "32px",
+        "xxl": "40px"
+    }
+    return BoxComponent(
+        layout="vertical",
+        contents=[],
+        height=height_map.get(size, "16px"),
+        spacing="none",
+        margin="none"
+    )
 
 # === نظام الإحصائيات ===
 class UserStats:
@@ -133,60 +154,80 @@ class ContentManager:
         self.more_questions: List[str] = []
         self.emoji_puzzles: List[dict] = []
         self.riddles_list: List[dict] = []
-        self.proverbs_list: List[dict] = []
         self.games_list: List[dict] = []
         self.poems_list: List[dict] = []
         self.quotes_list: List[dict] = []
-        self.daily_tips: List[dict] = []
         self.detailed_results: Dict = {}
         self.used_indices: Dict[str, List[int]] = {}
 
     def load_file_lines(self, filename: str) -> List[str]:
+        """تحميل ملف نصي بشكل آمن"""
         if not os.path.exists(filename):
-            logger.warning(f"⚠ الملف غير موجود: {filename}")
+            logger.warning(f"⚠ الملف غير موجود: {filename} - سيتم تخطيه")
             return []
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip()]
-                logger.info(f"✓ تم تحميل {len(lines)} سطر من {filename}")
+                if lines:
+                    logger.info(f"✓ تم تحميل {len(lines)} سطر من {filename}")
+                else:
+                    logger.warning(f"⚠ الملف فارغ: {filename}")
                 return lines
+        except UnicodeDecodeError:
+            logger.error(f"✗ خطأ في ترميز الملف {filename} - جرب UTF-8")
+            return []
         except Exception as e:
             logger.error(f"✗ خطأ في قراءة {filename}: {e}")
             return []
 
     def load_json_file(self, filename: str) -> Union[dict, list]:
+        """تحميل ملف JSON بشكل آمن"""
         if not os.path.exists(filename):
-            logger.warning(f"⚠ الملف غير موجود: {filename}")
+            logger.warning(f"⚠ الملف غير موجود: {filename} - سيتم تخطيه")
             return []
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                logger.info(f"✓ تم تحميل {filename}")
+                if data:
+                    count = len(data) if isinstance(data, list) else len(data.keys())
+                    logger.info(f"✓ تم تحميل {filename} ({count} عنصر)")
+                else:
+                    logger.warning(f"⚠ الملف فارغ: {filename}")
                 return data
+        except json.JSONDecodeError as e:
+            logger.error(f"✗ خطأ في تحليل JSON في {filename}: {e}")
+            return []
         except Exception as e:
-            logger.error(f"✗ خطأ في تحليل {filename}: {e}")
+            logger.error(f"✗ خطأ في قراءة {filename}: {e}")
             return []
 
     def initialize(self):
+        """تهيئة جميع الملفات مع معالجة آمنة للأخطاء"""
+        logger.info("=" * 50)
+        logger.info("بدء تحميل ملفات المحتوى...")
+        logger.info("=" * 50)
+        
+        # تحميل ملفات النصوص
         self.content_files = {
             "سؤال": self.load_file_lines("questions.txt"),
             "تحدي": self.load_file_lines("challenges.txt"),
             "اعتراف": self.load_file_lines("confessions.txt"),
         }
 
+        # تهيئة المؤشرات المستخدمة
         self.used_indices = {key: [] for key in self.content_files.keys()}
-        for key in ["أكثر", "ايموجي", "لغز", "شعر", "اقتباسات", "نصيحة", "أمثال"]:
+        for key in ["أكثر", "ايموجي", "لغز", "شعر", "اقتباسات"]:
             self.used_indices[key] = []
 
+        # تحميل الملفات الإضافية
         self.more_questions = self.load_file_lines("more_questions.txt")
         self.emoji_puzzles = self.load_json_file("emojis.json")
         self.riddles_list = self.load_json_file("riddles.json")
-        self.daily_tips = self.load_json_file("tips.json")
-        self.proverbs_list = self.load_json_file("proverbs.json")
         self.detailed_results = self.load_json_file("detailed_results.json")
         self.poems_list = self.load_json_file("poems.json")
         self.quotes_list = self.load_json_file("quotes.json")
 
+        # تحميل ألعاب الشخصية
         data = self.load_json_file("personality_games.json")
         if isinstance(data, dict):
             self.games_list = [data[key] for key in sorted(data.keys())]
@@ -194,8 +235,23 @@ class ContentManager:
             self.games_list = data
         else:
             self.games_list = []
+            logger.warning("⚠ لم يتم العثور على ألعاب الشخصية")
 
+        # عرض ملخص التحميل
+        logger.info("=" * 50)
+        logger.info("ملخص تحميل الملفات:")
+        logger.info(f"  ✓ الأسئلة: {len(self.content_files.get('سؤال', []))}")
+        logger.info(f"  ✓ التحديات: {len(self.content_files.get('تحدي', []))}")
+        logger.info(f"  ✓ الاعترافات: {len(self.content_files.get('اعتراف', []))}")
+        logger.info(f"  ✓ أسئلة أكثر: {len(self.more_questions)}")
+        logger.info(f"  ✓ ألغاز الإيموجي: {len(self.emoji_puzzles)}")
+        logger.info(f"  ✓ الألغاز: {len(self.riddles_list)}")
+        logger.info(f"  ✓ الأشعار: {len(self.poems_list)}")
+        logger.info(f"  ✓ الاقتباسات: {len(self.quotes_list)}")
+        logger.info(f"  ✓ ألعاب الشخصية: {len(self.games_list)}")
+        logger.info("=" * 50)
         logger.info("✓ تم تهيئة جميع الملفات بنجاح")
+        logger.info("=" * 50)
 
     def get_random_index(self, command: str, max_length: int) -> int:
         with content_lock:
@@ -241,16 +297,6 @@ class ContentManager:
         quote_entry = self.quotes_list[index]
         return f"{quote_entry.get('author', '')}\n\n{quote_entry.get('text', '')}"
 
-    def get_daily_tip(self) -> Optional[dict]:
-        if not self.daily_tips: return None
-        index = self.get_random_index("نصيحة", len(self.daily_tips))
-        return self.daily_tips[index]
-    
-    def get_proverb(self) -> Optional[dict]:
-        if not self.proverbs_list: return None
-        index = self.get_random_index("أمثال", len(self.proverbs_list))
-        return self.proverbs_list[index]
-
 content_manager = ContentManager()
 content_manager.initialize()
 
@@ -277,18 +323,16 @@ def create_help_flex() -> FlexSendMessage:
                     margin="lg",
                     contents=[
                         TextComponent(text="الأقسام المتاحة", weight="bold", size="md", color="#2a2a2a", margin="md"),
-                        SpacerComponent(size="md"),
+                        create_spacer("md"),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="سؤال", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="تحدي", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="اعتراف", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="أكثر", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="ايموجي", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="لغز", size="sm", color="#3a3a3a", margin="sm")]),
-                        BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="أمثال", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="شعر", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="اقتباس", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="تحليل", size="sm", color="#3a3a3a", margin="sm")]),
-                        BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="نصيحة", size="sm", color="#3a3a3a", margin="sm")]),
                         BoxComponent(layout="horizontal", contents=[TextComponent(text="◆", size="sm", color="#6a6a6a", flex=0), TextComponent(text="إحصائياتي", size="sm", color="#3a3a3a", margin="sm")]),
                     ],
                     padding_all="20px"
@@ -347,7 +391,7 @@ def create_stats_flex(user_id: str) -> FlexSendMessage:
                 SeparatorComponent(margin="lg", color="#d0d0d0"),
                 BoxComponent(layout="vertical", spacing="xs", margin="lg", contents=[
                     TextComponent(text="الإنجازات", weight="bold", size="sm", color="#2a2a2a"),
-                    SpacerComponent(size="sm"),
+                    create_spacer("sm"),
                     BoxComponent(layout="horizontal", contents=[TextComponent(text="الأسئلة", size="xs", color="#5a5a5a", flex=2), TextComponent(text=str(stats.get('total_questions', 0)), size="xs", color="#3a3a3a", flex=1, align="end")]),
                     BoxComponent(layout="horizontal", contents=[TextComponent(text="الألغاز", size="xs", color="#5a5a5a", flex=2), TextComponent(text=str(stats.get('riddles_solved', 0)), size="xs", color="#3a3a3a", flex=1, align="end")]),
                     BoxComponent(layout="horizontal", contents=[TextComponent(text="الإيموجي", size="xs", color="#5a5a5a", flex=2), TextComponent(text=str(stats.get('emoji_solved', 0)), size="xs", color="#3a3a3a", flex=1, align="end")]),
@@ -356,7 +400,7 @@ def create_stats_flex(user_id: str) -> FlexSendMessage:
                 SeparatorComponent(margin="lg", color="#d0d0d0"),
                 BoxComponent(layout="vertical", spacing="xs", margin="lg", contents=[
                     TextComponent(text="الجوائز", weight="bold", size="sm", color="#2a2a2a"),
-                    SpacerComponent(size="sm"),
+                    create_spacer("sm"),
                     BoxComponent(layout="vertical", spacing="xs", contents=achievements_contents)
                 ], padding_all="20px"),
                 BoxComponent(layout="vertical", contents=[TextComponent(text="استمر في التقدم 💪", size="xs", color="#8a8a8a", align="center")], padding_all="15px", background_color="#fafafa")
@@ -383,11 +427,11 @@ def create_winner_flex(user_id: str, achievement: str, points: int) -> FlexSendM
                 SeparatorComponent(margin="lg", color="#d0d0d0"),
                 BoxComponent(layout="vertical", spacing="md", margin="lg", contents=[
                     TextComponent(text="إنجاز جديد", weight="bold", size="md", color="#2a2a2a", align="center"),
-                    SpacerComponent(size="md"),
+                    create_spacer("md"),
                     BoxComponent(layout="vertical", contents=[
                         TextComponent(text=achievement, size="lg", color="#3a3a3a", align="center", weight="bold")
                     ], padding_all="15px", background_color="#fafafa", corner_radius="md"),
-                    SpacerComponent(size="lg"),
+                    create_spacer("lg"),
                     BoxComponent(layout="horizontal", contents=[
                         TextComponent(text="النقاط المكتسبة", size="sm", color="#5a5a5a", flex=2),
                         TextComponent(text=f"+{points}", size="sm", color="#2a2a2a", flex=1, align="end", weight="bold")
@@ -420,7 +464,7 @@ def create_points_flex(points: int, reason: str) -> FlexSendMessage:
                 SeparatorComponent(margin="md", color="#d0d0d0"),
                 BoxComponent(layout="vertical", spacing="sm", margin="md", contents=[
                     TextComponent(text=reason, size="sm", color="#5a5a5a", align="center", wrap=True),
-                    SpacerComponent(size="sm"),
+                    create_spacer("sm"),
                     BoxComponent(layout="vertical", contents=[
                         TextComponent(text=f"+{points}", size="xxl", color="#2a2a2a", align="center", weight="bold")
                     ], padding_all="10px", background_color="#fafafa", corner_radius="md"),
@@ -443,18 +487,15 @@ def create_main_menu() -> QuickReply:
         QuickReplyButton(action=MessageAction(label="أكثر", text="أكثر")),
         QuickReplyButton(action=MessageAction(label="ايموجي", text="ايموجي")),
         QuickReplyButton(action=MessageAction(label="لغز", text="لغز")),
-        QuickReplyButton(action=MessageAction(label="أمثال", text="أمثال")),
         QuickReplyButton(action=MessageAction(label="شعر", text="شعر")),
         QuickReplyButton(action=MessageAction(label="اقتباس", text="اقتباسات")),
         QuickReplyButton(action=MessageAction(label="تحليل", text="تحليل")),
-        QuickReplyButton(action=MessageAction(label="نصيحة", text="نصيحة")),
     ])
 
 # === حالات المستخدمين ===
 user_game_state: Dict[str, dict] = {}
 user_emoji_state: Dict[str, dict] = {}
 user_riddle_state: Dict[str, dict] = {}
-user_proverb_state: Dict[str, dict] = {}
 
 # === خريطة الأوامر ===
 COMMANDS_MAP = {
@@ -464,10 +505,8 @@ COMMANDS_MAP = {
     "أكثر": ["أكثر", "اكثر"],
     "ايموجي": ["ايموجي", "إيموجي", "emoji"],
     "لغز": ["لغز", "الغاز"],
-    "أمثال": ["أمثال", "امثال"],
     "شعر": ["شعر"],
-    "اقتباسات": ["اقتباسات", "اقتباس"],
-    "نصيحة": ["نصيحة", "نصايح"]
+    "اقتباسات": ["اقتباسات", "اقتباس"]
 }
 
 def find_command(text: str) -> Optional[str]:
@@ -482,6 +521,352 @@ def get_personality_tests_list() -> str:
     if not content_manager.games_list:
         return "لا توجد اختبارات متاحة حالياً"
     
+    lines = ["═══════════════", "تحليل الشخصية", "═══════════════", ""]
+    for i, game in enumerate(content_manager.games_list, 1):
+        lines.append(f"{i}. {game.get('title', f'اختبار {i}')}")
+    lines.extend(["", "═══════════════", "أرسل رقم الاختبار"])
+    return "\n".join(lines)
+
+def calculate_personality_result(answers: List[str], game_index: int) -> str:
+    count = {"أ": 0, "ب": 0, "ج": 0}
+    for ans in answers:
+        if ans in count:
+            count[ans] += 1
+    
+    most_common = max(count, key=count.get)
+    game_key = f"لعبة{game_index+1}"
+    result_text = content_manager.detailed_results.get(game_key, {}).get(
+        most_common, "إجاباتك تعكس شخصية فريدة ومميزة"
+    )
+    
+    return result_text
+
+def handle_personality_test_selection(reply_token, user_id: str, num: int):
+    if 1 <= num <= len(content_manager.games_list):
+        game_index = num - 1
+        user_game_state[user_id] = {"game_index": game_index, "question_index": 0, "answers": []}
+        game = content_manager.games_list[game_index]
+        first_q = game["questions"][0]
+        options = "\n".join([f"  {k}. {v}" for k, v in first_q["options"].items()])
+        msg = f"═══════════════\n{game.get('title', f'اختبار {num}')}\n═══════════════\n\n{first_q['question']}\n\n{options}\n\nأرسل: أ، ب، أو ج"
+        safe_reply(reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+
+def handle_personality_test_answer(reply_token, user_id: str, text: str):
+    state = user_game_state.get(user_id)
+    if not state:
+        return
+    
+    answer_map = {"1": "أ", "2": "ب", "3": "ج", "a": "أ", "b": "ب", "c": "ج"}
+    answer = answer_map.get(text.lower(), text)
+    
+    if answer in ["أ", "ب", "ج"]:
+        state["answers"].append(answer)
+        game = content_manager.games_list[state["game_index"]]
+        state["question_index"] += 1
+        
+        if state["question_index"] < len(game["questions"]):
+            q = game["questions"][state["question_index"]]
+            options = "\n".join([f"  {k}. {v}" for k, v in q["options"].items()])
+            progress = f"[{state['question_index']+1}/{len(game['questions'])}]"
+            msg = f"{progress}\n\n{q['question']}\n\n{options}\n\nأرسل: أ، ب، أو ج"
+            safe_reply(reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+        else:
+            result = calculate_personality_result(state["answers"], state["game_index"])
+            new_achievements = user_stats.update_stat(user_id, "games_completed")
+            user_stats.add_points(user_id, 50)
+            
+            if new_achievements:
+                safe_reply(reply_token, [
+                    TextSendMessage(text=f"═══════════════\nنتيجة التحليل\n═══════════════\n\n{result}", quick_reply=create_main_menu()),
+                    create_winner_flex(user_id, new_achievements[0], 50)
+                ])
+            else:
+                safe_reply(reply_token, [
+                    TextSendMessage(text=f"═══════════════\nنتيجة التحليل\n═══════════════\n\n{result}", quick_reply=create_main_menu()),
+                    create_points_flex(50, "إكمال التحليل")
+                ])
+            del user_game_state[user_id]
+
+# === دوال المحتوى ===
+def handle_emoji_puzzle(reply_token, user_id: str):
+    puzzle = content_manager.get_emoji_puzzle()
+    if not puzzle:
+        safe_reply(reply_token, TextSendMessage(text="لا توجد ألغاز إيموجي حالياً", quick_reply=create_main_menu()))
+        return
+    
+    user_emoji_state[user_id] = puzzle
+    user_stats.update_stat(user_id, "total_questions")
+    
+    if puzzle.get("image") and puzzle["image"].strip():
+        safe_reply(reply_token, [
+            ImageSendMessage(original_content_url=puzzle["image"], preview_image_url=puzzle["image"]),
+            TextSendMessage(text="═══════════════\nلغز الإيموجي\n═══════════════\n\nلمح • جاوب", quick_reply=create_main_menu())
+        ])
+    else:
+        msg = f"═══════════════\nلغز الإيموجي\n═══════════════\n\n{puzzle['question']}\n\nلمح • جاوب"
+        safe_reply(reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+
+def handle_riddle(reply_token, user_id: str):
+    riddle = content_manager.get_riddle()
+    if not riddle:
+        safe_reply(reply_token, TextSendMessage(text="لا توجد ألغاز حالياً", quick_reply=create_main_menu()))
+        return
+    
+    user_riddle_state[user_id] = riddle
+    user_stats.update_stat(user_id, "total_questions")
+    
+    if riddle.get("image") and riddle["image"].strip():
+        safe_reply(reply_token, [
+            ImageSendMessage(original_content_url=riddle["image"], preview_image_url=riddle["image"]),
+            TextSendMessage(text="═══════════════\nاللغز\n═══════════════\n\nلمح • جاوب", quick_reply=create_main_menu())
+        ])
+    else:
+        msg = f"═══════════════\nاللغز\n═══════════════\n\n{riddle['question']}\n\nلمح • جاوب"
+        safe_reply(reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+
+def handle_content_command(reply_token, command: str, user_id: str):
+    if command == "ايموجي":
+        handle_emoji_puzzle(reply_token, user_id)
+        return
+    
+    if command == "لغز":
+        handle_riddle(reply_token, user_id)
+        return
+    
+    user_stats.update_stat(user_id, "total_questions")
+    
+    if command == "أكثر":
+        question = content_manager.get_more_question()
+        content = question if question else "لا توجد أسئلة حالياً"
+    elif command == "شعر":
+        poem = content_manager.get_poem()
+        content = f"═══════════════\nشعر\n═══════════════\n\n{poem}" if poem else "لا يوجد شعر حالياً"
+    elif command == "اقتباسات":
+        quote = content_manager.get_quote()
+        content = f"═══════════════\nاقتباس\n═══════════════\n\n{quote}" if quote else "لا توجد اقتباسات حالياً"
+    else:
+        content = content_manager.get_content(command)
+        content = f"═══════════════\n{command}\n═══════════════\n\n{content}" if content else f"لا توجد بيانات في '{command}' حالياً"
+    
+    safe_reply(reply_token, TextSendMessage(text=content, quick_reply=create_main_menu()))
+
+def handle_answer_command(reply_token, user_id: str):
+    if user_id in user_emoji_state:
+        puzzle = user_emoji_state.pop(user_id)
+        new_achievements = user_stats.update_stat(user_id, "emoji_solved")
+        user_stats.add_points(user_id, 10)
+        
+        msg = f"═══════════════\nالإجابة الصحيحة\n═══════════════\n\n{puzzle['answer']}"
+        if new_achievements:
+            safe_reply(reply_token, [
+                TextSendMessage(text=msg, quick_reply=create_main_menu()),
+                create_winner_flex(user_id, new_achievements[0], 10)
+            ])
+        else:
+            safe_reply(reply_token, [
+                TextSendMessage(text=msg, quick_reply=create_main_menu()),
+                create_points_flex(10, "حل لغز الإيموجي")
+            ])
+    
+    elif user_id in user_riddle_state:
+        riddle = user_riddle_state.pop(user_id)
+        new_achievements = user_stats.update_stat(user_id, "riddles_solved")
+        user_stats.add_points(user_id, 10)
+        
+        msg = f"═══════════════\nالإجابة الصحيحة\n═══════════════\n\n{riddle['answer']}"
+        if new_achievements:
+            safe_reply(reply_token, [
+                TextSendMessage(text=msg, quick_reply=create_main_menu()),
+                create_winner_flex(user_id, new_achievements[0], 10)
+            ])
+        else:
+            safe_reply(reply_token, [
+                TextSendMessage(text=msg, quick_reply=create_main_menu()),
+                create_points_flex(10, "حل اللغز")
+            ])
+
+def handle_hint_command(reply_token, user_id: str):
+    """عرض التلميح للألغاز"""
+    if user_id in user_emoji_state:
+        puzzle = user_emoji_state[user_id]
+        hint = puzzle.get('hint', 'لا يوجد تلميح')
+        msg = f"═══════════════\nالتلميح\n═══════════════\n\n{hint}"
+        safe_reply(reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+    elif user_id in user_riddle_state:
+        riddle = user_riddle_state[user_id]
+        hint = riddle.get('hint', 'لا يوجد تلميح')
+        msg = f"═══════════════\nالتلميح\n═══════════════\n\n{hint}"
+        safe_reply(reply_token, TextSendMessage(text=msg, quick_reply=create_main_menu()))
+    else:
+        safe_reply(reply_token, TextSendMessage(text="لا يوجد لغز نشط حالياً", quick_reply=create_main_menu()))
+
+# ═══════════════════════════════════════════════════════════════
+# Flask Routes - نقاط النهاية (Endpoints)
+# ═══════════════════════════════════════════════════════════════
+
+@app.route("/", methods=["GET"])
+def home():
+    """الصفحة الرئيسية"""
+    return "✓ البوت يعمل بنجاح", 200
+
+@app.route("/health", methods=["GET"])
+def health_check():
+    """فحص صحة التطبيق"""
+    return {
+        "status": "healthy",
+        "service": "line-bot",
+        "version": "4.0",
+        "timestamp": datetime.now().isoformat()
+    }, 200
+
+@app.route("/callback", methods=["POST"])
+def callback():
+    """معالجة أحداث LINE Webhook"""
+    signature = request.headers.get("X-Line-Signature", "")
+    body = request.get_data(as_text=True)
+    
+    logger.info("تم استقبال طلب من LINE Webhook")
+    
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        logger.error("✗ توقيع غير صالح - تحقق من LINE_CHANNEL_SECRET")
+        abort(400)
+    except Exception as e:
+        logger.error(f"✗ خطأ في معالجة الطلب: {e}", exc_info=True)
+        abort(500)
+    
+    return "OK"
+
+# ═══════════════════════════════════════════════════════════════
+# معالج الرسائل - Message Handler
+# ═══════════════════════════════════════════════════════════════
+
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    """المعالج الرئيسي لجميع الرسائل النصية"""
+    user_id = event.source.user_id
+    reply_token = event.reply_token
+    text = event.message.text.strip()
+    text_lower = text.lower()
+
+    logger.info(f"رسالة من المستخدم {user_id[:8]}...: {text[:50]}")
+
+    try:
+        # ═══════════════════════════════════════════════
+        # أوامر المساعدة والإحصائيات
+        # ═══════════════════════════════════════════════
+        
+        if text_lower in ["مساعدة", "help", "بداية", "start", "ابدأ", "البداية"]:
+            logger.info(f"→ عرض المساعدة للمستخدم {user_id[:8]}")
+            safe_reply(reply_token, create_help_flex())
+            return
+
+        if text_lower in ["احصائياتي", "إحصائياتي", "احصائيات", "stats", "الاحصائيات"]:
+            logger.info(f"→ عرض الإحصائيات للمستخدم {user_id[:8]}")
+            safe_reply(reply_token, create_stats_flex(user_id))
+            return
+
+        # ═══════════════════════════════════════════════
+        # الأوامر الرئيسية (سؤال، تحدي، اعتراف، إلخ)
+        # ═══════════════════════════════════════════════
+        
+        command = find_command(text)
+        if command:
+            logger.info(f"→ تنفيذ أمر: {command}")
+            handle_content_command(reply_token, command, user_id)
+            return
+
+        # ═══════════════════════════════════════════════
+        # أوامر الإجابة والتلميح
+        # ═══════════════════════════════════════════════
+        
+        if text_lower in ["جاوب", "الجواب", "الاجابة", "الحل", "الإجابة"]:
+            logger.info(f"→ طلب الإجابة من {user_id[:8]}")
+            handle_answer_command(reply_token, user_id)
+            return
+
+        if text_lower in ["لمح", "تلميح", "hint", "تلميحة"]:
+            logger.info(f"→ طلب التلميح من {user_id[:8]}")
+            handle_hint_command(reply_token, user_id)
+            return
+
+        # ═══════════════════════════════════════════════
+        # تحليل الشخصية
+        # ═══════════════════════════════════════════════
+        
+        if text_lower in ["تحليل", "اختبار", "اختبارات", "تحليل الشخصية"]:
+            logger.info(f"→ عرض قائمة الاختبارات للمستخدم {user_id[:8]}")
+            safe_reply(reply_token, TextSendMessage(
+                text=get_personality_tests_list(), 
+                quick_reply=create_main_menu()
+            ))
+            return
+
+        # اختيار رقم اختبار
+        if text.isdigit():
+            logger.info(f"→ اختيار اختبار رقم {text}")
+            handle_personality_test_selection(reply_token, user_id, int(text))
+            return
+
+        # الإجابة على أسئلة التحليل
+        if user_id in user_game_state:
+            logger.info(f"→ إجابة على سؤال التحليل: {text}")
+            handle_personality_test_answer(reply_token, user_id, text)
+            return
+
+        # ═══════════════════════════════════════════════
+        # رسالة افتراضية للنصوص غير المعروفة
+        # ═══════════════════════════════════════════════
+        
+        logger.warning(f"⚠ نص غير معروف من {user_id[:8]}: {text}")
+        safe_reply(reply_token, TextSendMessage(
+            text="مرحباً! 👋\n\nاكتب 'مساعدة' لمعرفة الأوامر المتاحة",
+            quick_reply=create_main_menu()
+        ))
+
+    except Exception as e:
+        logger.error(f"✗ خطأ في معالجة الرسالة من {user_id[:8]}: {e}", exc_info=True)
+        try:
+            safe_reply(reply_token, TextSendMessage(
+                text="عذراً، حدث خطأ! 😔\nيرجى المحاولة مرة أخرى",
+                quick_reply=create_main_menu()
+            ))
+        except Exception as reply_error:
+            logger.error(f"✗ فشل إرسال رسالة الخطأ: {reply_error}")
+
+# ═══════════════════════════════════════════════════════════════
+# نقطة الدخول الرئيسية
+# ═══════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5000))
+    
+    # عرض معلومات التشغيل
+    logger.info("=" * 70)
+    logger.info("🚀 بدء تشغيل LINE Bot")
+    logger.info("=" * 70)
+    logger.info(f"📍 المنفذ: {port}")
+    logger.info(f"📂 المسار: {os.getcwd()}")
+    logger.info(f"🐍 Python: {os.sys.version.split()[0]}")
+    logger.info(f"📁 الملفات الموجودة: {len([f for f in os.listdir('.') if os.path.isfile(f)])} ملف")
+    logger.info("=" * 70)
+    
+    # التحقق من المتغيرات البيئية
+    if LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET:
+        logger.info("✅ تم تحميل بيانات LINE بنجاح")
+        logger.info(f"   Access Token: {LINE_CHANNEL_ACCESS_TOKEN[:15]}...")
+        logger.info(f"   Channel Secret: {LINE_CHANNEL_SECRET[:10]}...")
+    else:
+        logger.error("❌ بيانات LINE غير متوفرة!")
+        logger.error("   يرجى تعيين LINE_CHANNEL_ACCESS_TOKEN و LINE_CHANNEL_SECRET")
+    
+    logger.info("=" * 70)
+    logger.info("✅ البوت جاهز لاستقبال الرسائل!")
+    logger.info("=" * 70)
+    
+    # تشغيل التطبيق
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
     lines = ["═══════════════", "تحليل الشخصية", "═══════════════", ""]
     for i, game in enumerate(content_manager.games_list, 1):
         lines.append(f"{i}. {game.get('title', f'اختبار {i}')}")
