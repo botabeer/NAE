@@ -183,7 +183,7 @@ class ContentManager:
         return self.tips[idx]
 
     def get_proverb(self) -> Optional[dict]:
-        if not self.proverbs: return None:
+        if not self.proverbs: return None
         idx = self.get_random_index("أمثال", len(self.proverbs))
         return self.proverbs[idx]
 
