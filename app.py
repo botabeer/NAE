@@ -871,7 +871,7 @@ if __name__ == "__main__":
     for i, game in enumerate(content_manager.games_list, 1):
         lines.append(f"{i}. {game.get('title', f'اختبار {i}')}")
     lines.extend(["", "═══════════════", "أرسل رقم الاختبار"])
-    return "\n".join(lines)
+    "\n".join(lines)
 
 def calculate_personality_result(answers: List[str], game_index: int) -> str:
     count = {"أ": 0, "ب": 0, "ج": 0}
