@@ -177,7 +177,6 @@ def create_main_menu() -> QuickReply:
 
 # === Flex Messages البسيطة والأنيقة ===
 def create_game_list_flex(games: list):
-    """قائمة الألعاب بتصميم بسيط"""
     game_buttons = []
     for i, game in enumerate(games[:10], 1):
         game_buttons.append(
@@ -221,7 +220,6 @@ def create_game_list_flex(games: list):
     )
 
 def create_game_question_flex(game_title: str, question: dict, progress: str):
-    """سؤال اللعبة بتصميم نظيف"""
     option_buttons = []
     for key, value in question['options'].items():
         option_buttons.append(
@@ -290,7 +288,6 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
     )
 
 def create_game_result_flex(result_text: str, stats: str, username: str):
-    """نتيجة اللعبة بتصميم بسيط"""
     return FlexSendMessage(
         alt_text="النتيجة",
         contents=BubbleContainer(
@@ -302,7 +299,7 @@ def create_game_result_flex(result_text: str, stats: str, username: str):
                         text=f'{username}',
                         weight='bold',
                         size='lg',
-                        color='#666666',
+                        color='#000000',
                         align='center'
                     ),
                     TextComponent(
@@ -337,7 +334,7 @@ def create_game_result_flex(result_text: str, stats: str, username: str):
                             TextComponent(
                                 text=stats,
                                 size='sm',
-                                color='#888888',
+                                color='#000000',
                                 wrap=True,
                                 align='center'
                             )
@@ -363,7 +360,6 @@ def create_game_result_flex(result_text: str, stats: str, username: str):
     )
 
 def create_riddle_flex(riddle: dict):
-    """عرض اللغز بتصميم بسيط"""
     return FlexSendMessage(
         alt_text="لغز",
         contents=BubbleContainer(
@@ -403,7 +399,7 @@ def create_riddle_flex(riddle: dict):
                             ButtonComponent(
                                 action=FlexMessageAction(label='تلميح', text='لمح'),
                                 style='secondary',
-                                color='#666666',
+                                color='#000000',
                                 height='sm'
                             ),
                             ButtonComponent(
@@ -544,217 +540,66 @@ def handle_content_command(event, command: str):
         if not quote:
             content = "لا توجد اقتباسات متاحة حالياً."
         else:
-            content = f'"{quote.get("text", "")}"\n\n— {quote.get("author", "مجهول")}'
+            content = f"{quote.get('text','')}\n\n— {quote.get('author','مجهول')}"
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=content, quick_reply=create_main_menu())
         )
-            
-    elif command=="أكثر":
-        question = content_manager.get_more_question()
-        content = question if question else "لا توجد أسئلة متاحة في قسم 'أكثر'."
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"{username}\n\n{content}", quick_reply=create_main_menu())
-        )
-            
     else:
-        text_content = content_manager.get_content(command)
-        content = text_content if text_content else f"لا توجد بيانات متاحة في قسم '{command}' حالياً."
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=f"{username}\n\n{content}", quick_reply=create_main_menu())
-        )
-
-def handle_answer_command(event, user_id: str):
-    if user_id in user_riddle_state:
-        riddle = user_riddle_state.pop(user_id)
-        msg = f"الإجابة الصحيحة:\n\n{riddle['answer']}"
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=msg, quick_reply=create_main_menu())
-        )
-
-def handle_hint_command(event, user_id: str):
-    if user_id in user_riddle_state:
-        riddle = user_riddle_state[user_id]
-        hint = riddle.get('hint','لا يوجد تلميح')
-        msg = f"التلميح:\n\n{hint}"
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=msg, quick_reply=create_main_menu())
-        )
-
-# === دوال لعبة الفروقات ===
-def handle_difference_game(event):
-    """بدء لعبة الفروقات"""
-    challenge = get_difference_challenge()
-    user_sessions[event.source.user_id] = {
-        "game": "differences",
-        "answer": challenge["answer"]
-    }
-    
-    line_bot_api.reply_message(
-        event.reply_token,
-        [
-            TextSendMessage(
-                text="لعبة الفروقات\n\nشاهد الصورتين بتركيز\nكم فرق تجد بينهما؟\n\nأرسل الرقم فقط",
-                quick_reply=create_main_menu()
-            ),
-            ImageSendMessage(
-                original_content_url=challenge["original"],
-                preview_image_url=challenge["original"]
-            ),
-            ImageSendMessage(
-                original_content_url=challenge["changed"],
-                preview_image_url=challenge["changed"]
-            )
-        ]
-    )
-
-def handle_difference_answer(event, user_id: str, text: str):
-    """معالجة إجابة لعبة الفروقات"""
-    if text.isdigit() and user_id in user_sessions:
-        session = user_sessions.get(user_id)
-        if session and session.get("game") == "differences":
-            correct = session["answer"]
-            user_answer = int(text)
-            username = get_user_display_name(user_id)
-            
-            if user_answer == correct:
-                reply = f"{username}\n\nممتاز! عدد الفروقات صحيح: {correct}\n\nلديك عين ثاقبة!"
-            else:
-                diff = abs(user_answer - correct)
-                if diff == 1:
-                    reply = f"{username}\n\nقريب جداً!\n\nالعدد الصحيح: {correct}\nأنت كنت قريب بفرق واحد فقط!"
-                else:
-                    reply = f"{username}\n\nحاول مرة أخرى\n\nالعدد الصحيح: {correct}\nكان هناك فرق في العدد"
-            
+        content = content_manager.get_content(command)
+        if content:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text=reply, quick_reply=create_main_menu())
+                TextSendMessage(text=content, quick_reply=create_main_menu())
             )
-            del user_sessions[user_id]
-            return True
-    return False
 
-# === Routes ===
-@app.route("/", methods=["GET"])
-def home():
-    return "البوت يعمل بنجاح!", 200
-
-@app.route("/health", methods=["GET"])
-def health_check():
-    return {"status":"healthy","service":"line-bot"}, 200
-
-@app.route("/callback", methods=["POST"])
+# === Webhook ===
+@app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers.get("X-Line-Signature","")
+    signature = request.headers.get('X-Line-Signature')
     body = request.get_data(as_text=True)
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        logger.error("توقيع غير صالح")
         abort(400)
-    except Exception as e:
-        logger.error(f"خطأ في معالجة الطلب: {e}")
-        abort(500)
-    return "OK"
+    return 'OK'
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    user_id = event.source.user_id
     text = event.message.text.strip()
-    text_lower = text.lower()
+    user_id = event.source.user_id
+    
+    if user_id in user_game_state:
+        handle_game_answer(event,user_id,text)
+        return
+    
+    if text.isdigit():
+        handle_game_selection(event,user_id,int(text))
+        return
+    
+    command = find_command(text)
+    if command:
+        handle_content_command(event, command)
+        return
+    
+    if text.lower() in ["فرق","لعبه"]:
+        challenge = get_difference_challenge() if text.lower()=="فرق" else None
+        if challenge:
+            messages = [
+                ImageSendMessage(original_content_url=challenge["original"], preview_image_url=challenge["original"]),
+                ImageSendMessage(original_content_url=challenge["changed"], preview_image_url=challenge["changed"]),
+                TextSendMessage(text="كم عدد الاختلافات؟", quick_reply=create_main_menu())
+            ]
+            line_bot_api.reply_message(event.reply_token, messages)
+        else:
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد فروقات حالياً.", quick_reply=create_main_menu()))
+        return
+    
+    # إذا لم يتعرف على أي أمر، تجاهل الرسالة
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="استخدم الأزرار الثابتة للتفاعل.", quick_reply=create_main_menu()))
 
-    try:
-        # رسالة الترحيب
-        if text_lower in ["مساعدة","help","بداية","start","مرحبا","السلام عليكم"]:
-            username = get_user_display_name(user_id)
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(
-                    text=f"مرحباً {username}\n\nاختر من القائمة أدناه:",
-                    quick_reply=create_main_menu()
-                )
-            )
-            return
-
-        # لعبة الفروقات
-        if text_lower in ["فرق","فروقات","الفروقات","لعبة الفروقات"]:
-            handle_difference_game(event)
-            return
-
-        # التحقق من إجابة لعبة الفروقات
-        if handle_difference_answer(event, user_id, text):
-            return
-
-        # البحث عن الأوامر
-        command = find_command(text)
-        if command:
-            handle_content_command(event, command)
-            return
-
-        # أوامر الإجابة
-        if text_lower in ["جاوب","الجواب","الاجابة","اجابة","اظهر"]:
-            handle_answer_command(event, user_id)
-            return
-
-        # أوامر التلميح
-        if text_lower in ["لمح","تلميح","hint","ساعدني"]:
-            handle_hint_command(event, user_id)
-            return
-
-        # عرض قائمة الألعاب
-        if text_lower in ["لعبه","لعبة","العاب","ألعاب","game","games"]:
-            if content_manager.games_list:
-                flex_msg = create_game_list_flex(content_manager.games_list)
-                line_bot_api.reply_message(event.reply_token, flex_msg)
-            else:
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(
-                        text="لا توجد ألعاب متاحة حالياً.",
-                        quick_reply=create_main_menu()
-                    )
-                )
-            return
-
-        # اختيار لعبة برقم
-        if text.isdigit() and user_id not in user_sessions:
-            handle_game_selection(event, user_id, int(text))
-            return
-
-        # الإجابة على أسئلة اللعبة
-        if user_id in user_game_state:
-            handle_game_answer(event, user_id, text)
-            return
-
-        # رسالة افتراضية للرسائل غير المعروفة
-        username = get_user_display_name(user_id)
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(
-                text=f"مرحباً {username}\n\nاختر من القائمة أدناه",
-                quick_reply=create_main_menu()
-            )
-        )
-
-    except Exception as e:
-        logger.error(f"خطأ في معالجة الرسالة: {e}", exc_info=True)
-        try:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(
-                    text="حدث خطأ، يرجى المحاولة مرة أخرى",
-                    quick_reply=create_main_menu()
-                )
-            )
-        except:
-            pass
-
-# === تشغيل التطبيق ===
-if __name__=="__main__":
-    port = int(os.getenv("PORT",5000))
-    logger.info(f"البوت يعمل على المنفذ {port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+# === بدء السيرفر ===
+if __name__ == "__main__":
+    port = int(os.environ.get('PORT', 5000))
+    logger.info(f"🚀 بدء الخادم على المنفذ {port}")
+    app.run(host='0.0.0.0', port=port)
