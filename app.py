@@ -35,29 +35,6 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # === Locks للتزامن ===
 content_lock = Lock()
 
-# === لعبة الفروقات ===
-DIFFERENCE_SETS = [
-    {
-        "original": "https://i.imgur.com/1Yq7rKj.jpg",
-        "changed": "https://i.imgur.com/XM0HkEW.jpg",
-        "answer": 3
-    },
-    {
-        "original": "https://i.imgur.com/4bAqH8h.jpg",
-        "changed": "https://i.imgur.com/W3x1jpd.jpg",
-        "answer": 5
-    },
-    {
-        "original": "https://i.imgur.com/R60SwLZ.jpg",
-        "changed": "https://i.imgur.com/OCZTjXA.jpg",
-        "answer": 4
-    }
-]
-
-def get_difference_challenge():
-    """اختيار تحدي فروقات عشوائي"""
-    return random.choice(DIFFERENCE_SETS)
-
 # === مدير المحتوى ===
 class ContentManager:
     def __init__(self):
@@ -104,7 +81,7 @@ class ContentManager:
         }
 
         self.used_indices = {key: [] for key in self.content_files.keys()}
-        for key in ["أكثر","لغز","شعر","اقتباسات"]:
+        for key in ["أكثر", "لغز", "شعر", "اقتباسات"]:
             self.used_indices[key] = []
 
         self.more_questions = self.load_file_lines("more_file.txt")
@@ -126,35 +103,41 @@ class ContentManager:
             if len(self.used_indices[command]) >= max_length:
                 self.used_indices[command] = []
             available_indices = [i for i in range(max_length) if i not in self.used_indices[command]]
-            index = random.choice(available_indices) if available_indices else random.randint(0,max_length-1)
+            index = random.choice(available_indices) if available_indices else random.randint(0, max_length - 1)
             self.used_indices[command].append(index)
             return index
 
     def get_content(self, command: str) -> Optional[str]:
         file_list = self.content_files.get(command, [])
-        if not file_list: return None
+        if not file_list:
+            return None
         index = self.get_random_index(command, len(file_list))
         return file_list[index]
 
     def get_more_question(self) -> Optional[str]:
-        if not self.more_questions: return None
+        if not self.more_questions:
+            return None
         index = self.get_random_index("أكثر", len(self.more_questions))
         return self.more_questions[index]
 
     def get_riddle(self) -> Optional[dict]:
-        if not self.riddles_list: return None
+        if not self.riddles_list:
+            return None
         index = self.get_random_index("لغز", len(self.riddles_list))
         return self.riddles_list[index]
 
     def get_poem(self) -> Optional[dict]:
-        if not self.poems_list: return None
+        if not self.poems_list:
+            return None
         index = self.get_random_index("شعر", len(self.poems_list))
         return self.poems_list[index]
 
     def get_quote(self) -> Optional[dict]:
-        if not self.quotes_list: return None
+        if not self.quotes_list:
+            return None
         index = self.get_random_index("اقتباسات", len(self.quotes_list))
         return self.quotes_list[index]
+
 
 # === تهيئة مدير المحتوى ===
 content_manager = ContentManager()
@@ -162,7 +145,6 @@ content_manager.initialize()
 
 # === القوائم الثابتة ===
 def create_main_menu() -> QuickReply:
-    """القائمة الرئيسية الثابتة"""
     return QuickReply(items=[
         QuickReplyButton(action=MessageAction(label="▫️ سؤال", text="سؤال")),
         QuickReplyButton(action=MessageAction(label="▫️ تحدي", text="تحدي")),
@@ -171,11 +153,10 @@ def create_main_menu() -> QuickReply:
         QuickReplyButton(action=MessageAction(label="▫️ شعر", text="شعر")),
         QuickReplyButton(action=MessageAction(label="▫️ اقتباسات", text="اقتباسات")),
         QuickReplyButton(action=MessageAction(label="▫️ لغز", text="لغز")),
-        QuickReplyButton(action=MessageAction(label="▫️ فرق", text="فرق")),
         QuickReplyButton(action=MessageAction(label="▫️ لعبة", text="لعبه")),
     ])
 
-# === Flex Messages البسيطة والأنيقة ===
+# === Flex Messages بألوان فاتحة ===
 def create_game_list_flex(games: list):
     game_buttons = []
     for i, game in enumerate(games[:10], 1):
@@ -186,11 +167,10 @@ def create_game_list_flex(games: list):
                     text=str(i)
                 ),
                 style='secondary',
-                color='#000000',
+                color='#f2f2f2',
                 height='sm'
             )
         )
-    
     return FlexSendMessage(
         alt_text="قائمة الألعاب",
         contents=BubbleContainer(
@@ -198,20 +178,9 @@ def create_game_list_flex(games: list):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='الألعاب المتاحة',
-                        weight='bold',
-                        size='xl',
-                        color='#000000',
-                        align='center'
-                    ),
+                    TextComponent(text='الألعاب المتاحة', weight='bold', size='xl', color='#000000', align='center'),
                     SeparatorComponent(margin='lg', color='#e0e0e0'),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='xl',
-                        spacing='sm',
-                        contents=game_buttons
-                    )
+                    BoxComponent(layout='vertical', margin='xl', spacing='sm', contents=game_buttons)
                 ],
                 paddingAll='20px',
                 backgroundColor='#ffffff'
@@ -226,11 +195,10 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
             ButtonComponent(
                 action=FlexMessageAction(label=f"{key}. {value}", text=key),
                 style='secondary',
-                color='#000000',
+                color='#f2f2f2',
                 height='sm'
             )
         )
-    
     return FlexSendMessage(
         alt_text=f"{game_title}",
         contents=BubbleContainer(
@@ -238,48 +206,19 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    BoxComponent(
-                        layout='horizontal',
-                        contents=[
-                            TextComponent(
-                                text=game_title,
-                                weight='bold',
-                                size='lg',
-                                color='#000000',
-                                flex=1
-                            ),
-                            TextComponent(
-                                text=progress,
-                                size='sm',
-                                color='#999999',
-                                flex=0,
-                                align='end'
-                            )
-                        ]
-                    ),
+                    TextComponent(text=game_title, weight='bold', size='lg', color='#000000', flex=1),
                     SeparatorComponent(margin='lg', color='#e0e0e0'),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
                         contents=[
-                            TextComponent(
-                                text=question['question'],
-                                size='md',
-                                color='#000000',
-                                wrap=True,
-                                lineSpacing='8px'
-                            )
+                            TextComponent(text=question['question'], size='md', color='#000000', wrap=True)
                         ],
                         paddingAll='16px',
-                        backgroundColor='#f5f5f5',
+                        backgroundColor='#f2f2f2',
                         cornerRadius='8px'
                     ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='xl',
-                        spacing='sm',
-                        contents=option_buttons
-                    )
+                    BoxComponent(layout='vertical', margin='xl', spacing='sm', contents=option_buttons)
                 ],
                 paddingAll='20px',
                 backgroundColor='#ffffff'
@@ -295,62 +234,27 @@ def create_game_result_flex(result_text: str, stats: str, username: str):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text=f'{username}',
-                        weight='bold',
-                        size='lg',
-                        color='#000000',
-                        align='center'
-                    ),
-                    TextComponent(
-                        text='نتيجتك',
-                        weight='bold',
-                        size='xl',
-                        color='#000000',
-                        align='center',
-                        margin='md'
-                    ),
+                    TextComponent(text=f'{username}', weight='bold', size='lg', color='#000000', align='center'),
+                    TextComponent(text='نتيجتك', weight='bold', size='xl', color='#000000', align='center'),
                     SeparatorComponent(margin='lg', color='#e0e0e0'),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=result_text,
-                                size='md',
-                                color='#000000',
-                                wrap=True,
-                                lineSpacing='8px'
-                            )
-                        ],
+                        contents=[TextComponent(text=result_text, size='md', color='#000000', wrap=True)],
                         paddingAll='16px',
-                        backgroundColor='#f5f5f5',
+                        backgroundColor='#f2f2f2',
                         cornerRadius='8px'
                     ),
                     BoxComponent(
                         layout='vertical',
                         margin='lg',
-                        contents=[
-                            TextComponent(
-                                text=stats,
-                                size='sm',
-                                color='#000000',
-                                wrap=True,
-                                align='center'
-                            )
-                        ]
+                        contents=[TextComponent(text=stats, size='sm', color='#000000', align='center')]
                     ),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
-                        contents=[
-                            ButtonComponent(
-                                action=FlexMessageAction(label='لعبة جديدة', text='لعبه'),
-                                style='primary',
-                                color='#000000',
-                                height='sm'
-                            )
-                        ]
+                        contents=[ButtonComponent(action=FlexMessageAction(label='لعبة جديدة', text='لعبه'),
+                                                  style='primary', color='#f2f2f2', height='sm')]
                     )
                 ],
                 paddingAll='20px',
@@ -367,28 +271,14 @@ def create_riddle_flex(riddle: dict):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='لغز',
-                        weight='bold',
-                        size='xl',
-                        color='#000000',
-                        align='center'
-                    ),
+                    TextComponent(text='لغز', weight='bold', size='xl', color='#000000', align='center'),
                     SeparatorComponent(margin='lg', color='#e0e0e0'),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=riddle['question'],
-                                size='md',
-                                color='#000000',
-                                wrap=True,
-                                lineSpacing='8px'
-                            )
-                        ],
+                        contents=[TextComponent(text=riddle['question'], size='md', color='#000000', wrap=True)],
                         paddingAll='16px',
-                        backgroundColor='#f5f5f5',
+                        backgroundColor='#f2f2f2',
                         cornerRadius='8px'
                     ),
                     BoxComponent(
@@ -396,18 +286,10 @@ def create_riddle_flex(riddle: dict):
                         margin='xl',
                         spacing='sm',
                         contents=[
-                            ButtonComponent(
-                                action=FlexMessageAction(label='تلميح', text='لمح'),
-                                style='secondary',
-                                color='#000000',
-                                height='sm'
-                            ),
-                            ButtonComponent(
-                                action=FlexMessageAction(label='الإجابة', text='جاوب'),
-                                style='primary',
-                                color='#000000',
-                                height='sm'
-                            )
+                            ButtonComponent(action=FlexMessageAction(label='تلميح', text='لمح'),
+                                            style='secondary', color='#f2f2f2', height='sm'),
+                            ButtonComponent(action=FlexMessageAction(label='الإجابة', text='جاوب'),
+                                            style='primary', color='#f2f2f2', height='sm')
                         ]
                     )
                 ],
@@ -420,85 +302,70 @@ def create_riddle_flex(riddle: dict):
 # === حالات المستخدمين ===
 user_game_state: Dict[str, dict] = {}
 user_riddle_state: Dict[str, dict] = {}
-user_sessions: Dict[str, dict] = {}
 
 # === خريطة الأوامر ===
 COMMANDS_MAP = {
-    "سؤال":["سؤال","سوال","اسأله","اسئلة","اسأل"],
-    "تحدي":["تحدي","تحديات","تحد"],
-    "اعتراف":["اعتراف","اعترافات"],
-    "أكثر":["أكثر","اكثر","زيادة"],
-    "لغز":["لغز","الغاز","ألغاز"],
-    "شعر":["شعر"],
-    "اقتباسات":["اقتباسات","اقتباس","قول"]
+    "سؤال": ["سؤال", "سوال", "اسأله", "اسئلة", "اسأل"],
+    "تحدي": ["تحدي", "تحديات", "تحد"],
+    "اعتراف": ["اعتراف", "اعترافات"],
+    "أكثر": ["أكثر", "اكثر", "زيادة"],
+    "لغز": ["لغز", "الغاز", "ألغاز"],
+    "شعر": ["شعر"],
+    "اقتباسات": ["اقتباسات", "اقتباس", "قول"]
 }
 
-def find_command(text:str) -> Optional[str]:
+def find_command(text: str) -> Optional[str]:
     text_lower = text.lower().strip()
     for key, variants in COMMANDS_MAP.items():
         if text_lower in [v.lower() for v in variants]:
             return key
     return None
 
-# === دالة الحصول على اسم المستخدم ===
 def get_user_display_name(user_id: str) -> str:
-    """الحصول على اسم المستخدم من LINE"""
     try:
         profile = line_bot_api.get_profile(user_id)
         return profile.display_name
-    except Exception as e:
-        logger.error(f"خطأ في الحصول على اسم المستخدم: {e}")
+    except Exception:
         return "المستخدم"
 
-# === دوال الألعاب ===
+# === الدوال المنطقية ===
 def calculate_result(answers: List[str], game_index: int) -> tuple:
-    count = {"أ":0,"ب":0,"ج":0}
+    count = {"أ": 0, "ب": 0, "ج": 0}
     for ans in answers:
-        if ans in count: count[ans] +=1
+        if ans in count:
+            count[ans] += 1
     most_common = max(count, key=count.get)
-    game_key = f"لعبة{game_index+1}"
-    result_text = content_manager.detailed_results.get(game_key,{}).get(
-        most_common,f"إجابتك الأكثر: {most_common}\n\nنتيجتك تعكس شخصية فريدة!"
+    game_key = f"لعبة{game_index + 1}"
+    result_text = content_manager.detailed_results.get(game_key, {}).get(
+        most_common, f"إجابتك الأكثر: {most_common}\n\nنتيجتك تعكس شخصية فريدة!"
     )
     stats = f"أ: {count['أ']}  •  ب: {count['ب']}  •  ج: {count['ج']}"
     return result_text, stats
 
-def handle_game_selection(event,user_id:str,num:int):
-    if 1<=num<=len(content_manager.games_list):
-        game_index = num-1
-        user_game_state[user_id] = {"game_index":game_index,"question_index":0,"answers":[]}
+def handle_game_selection(event, user_id: str, num: int):
+    if 1 <= num <= len(content_manager.games_list):
+        game_index = num - 1
+        user_game_state[user_id] = {"game_index": game_index, "question_index": 0, "answers": []}
         game = content_manager.games_list[game_index]
         first_q = game["questions"][0]
         progress = f"1/{len(game['questions'])}"
-        
-        flex_msg = create_game_question_flex(
-            game.get('title', f'اللعبة {num}'),
-            first_q,
-            progress
-        )
+        flex_msg = create_game_question_flex(game.get('title', f'اللعبة {num}'), first_q, progress)
         line_bot_api.reply_message(event.reply_token, flex_msg)
 
-def handle_game_answer(event,user_id:str,text:str):
+def handle_game_answer(event, user_id: str, text: str):
     state = user_game_state.get(user_id)
-    if not state: return
-    
-    answer_map = {"1":"أ","2":"ب","3":"ج","a":"أ","b":"ب","c":"ج"}
+    if not state:
+        return
+    answer_map = {"1": "أ", "2": "ب", "3": "ج", "a": "أ", "b": "ب", "c": "ج"}
     answer = answer_map.get(text.lower(), text)
-    
-    if answer in ["أ","ب","ج"]:
+    if answer in ["أ", "ب", "ج"]:
         state["answers"].append(answer)
         game = content_manager.games_list[state["game_index"]]
-        state["question_index"] +=1
-        
+        state["question_index"] += 1
         if state["question_index"] < len(game["questions"]):
             q = game["questions"][state["question_index"]]
-            progress = f"{state['question_index']+1}/{len(game['questions'])}"
-            
-            flex_msg = create_game_question_flex(
-                game.get('title', 'اللعبة'),
-                q,
-                progress
-            )
+            progress = f"{state['question_index'] + 1}/{len(game['questions'])}"
+            flex_msg = create_game_question_flex(game.get('title', 'اللعبة'), q, progress)
             line_bot_api.reply_message(event.reply_token, flex_msg)
         else:
             result_text, stats = calculate_result(state["answers"], state["game_index"])
@@ -507,12 +374,9 @@ def handle_game_answer(event,user_id:str,text:str):
             line_bot_api.reply_message(event.reply_token, flex_msg)
             del user_game_state[user_id]
 
-# === دوال المحتوى ===
 def handle_content_command(event, command: str):
     user_id = event.source.user_id
-    username = get_user_display_name(user_id)
-    
-    if command=="لغز":
+    if command == "لغز":
         riddle = content_manager.get_riddle()
         if not riddle:
             line_bot_api.reply_message(
@@ -523,35 +387,18 @@ def handle_content_command(event, command: str):
             user_riddle_state[user_id] = riddle
             flex_msg = create_riddle_flex(riddle)
             line_bot_api.reply_message(event.reply_token, flex_msg)
-            
-    elif command=="شعر":
+    elif command == "شعر":
         poem = content_manager.get_poem()
-        if not poem:
-            content = "لا يوجد شعر متاح حالياً."
-        else:
-            content = f"{poem.get('text', '')}\n\n— {poem.get('poet', 'مجهول')}"
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=content, quick_reply=create_main_menu())
-        )
-            
-    elif command=="اقتباسات":
+        content = f"{poem.get('text', '')}\n\n— {poem.get('poet', 'مجهول')}" if poem else "لا يوجد شعر حالياً."
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=content, quick_reply=create_main_menu()))
+    elif command == "اقتباسات":
         quote = content_manager.get_quote()
-        if not quote:
-            content = "لا توجد اقتباسات متاحة حالياً."
-        else:
-            content = f"{quote.get('text','')}\n\n— {quote.get('author','مجهول')}"
-        line_bot_api.reply_message(
-            event.reply_token,
-            TextSendMessage(text=content, quick_reply=create_main_menu())
-        )
+        content = f"{quote.get('text', '')}\n\n— {quote.get('author', 'مجهول')}" if quote else "لا توجد اقتباسات حالياً."
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=content, quick_reply=create_main_menu()))
     else:
         content = content_manager.get_content(command)
         if content:
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=content, quick_reply=create_main_menu())
-            )
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=content, quick_reply=create_main_menu()))
 
 # === Webhook ===
 @app.route("/callback", methods=['POST'])
@@ -568,34 +415,16 @@ def callback():
 def handle_message(event):
     text = event.message.text.strip()
     user_id = event.source.user_id
-    
     if user_id in user_game_state:
-        handle_game_answer(event,user_id,text)
+        handle_game_answer(event, user_id, text)
         return
-    
     if text.isdigit():
-        handle_game_selection(event,user_id,int(text))
+        handle_game_selection(event, user_id, int(text))
         return
-    
     command = find_command(text)
     if command:
         handle_content_command(event, command)
         return
-    
-    if text.lower() in ["فرق","لعبه"]:
-        challenge = get_difference_challenge() if text.lower()=="فرق" else None
-        if challenge:
-            messages = [
-                ImageSendMessage(original_content_url=challenge["original"], preview_image_url=challenge["original"]),
-                ImageSendMessage(original_content_url=challenge["changed"], preview_image_url=challenge["changed"]),
-                TextSendMessage(text="كم عدد الاختلافات؟", quick_reply=create_main_menu())
-            ]
-            line_bot_api.reply_message(event.reply_token, messages)
-        else:
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text="لا توجد فروقات حالياً.", quick_reply=create_main_menu()))
-        return
-    
-    # إذا لم يتعرف على أي أمر، تجاهل الرسالة
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text="استخدم الأزرار الثابتة للتفاعل.", quick_reply=create_main_menu()))
 
 # === بدء السيرفر ===
