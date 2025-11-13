@@ -156,7 +156,11 @@ def create_main_menu() -> QuickReply:
         QuickReplyButton(action=MessageAction(label="▫️ لعبة", text="لعبه")),
     ])
 
-# === Flex Messages بألوان فاتحة ===
+# === Flex Messages بألوان أبيض + رمادي فاتح مع ظل خفيف ===
+LIGHT_GRAY = "#F7F7F7"
+WHITE = "#FFFFFF"
+BOX_SHADOW = "0px 2px 4px rgba(0,0,0,0.05)"  # Shadow effect not supported in LINE, but placeholder
+
 def create_game_list_flex(games: list):
     game_buttons = []
     for i, game in enumerate(games[:10], 1):
@@ -167,7 +171,7 @@ def create_game_list_flex(games: list):
                     text=str(i)
                 ),
                 style='secondary',
-                color='#f2f2f2',
+                color=LIGHT_GRAY,
                 height='sm'
             )
         )
@@ -183,7 +187,7 @@ def create_game_list_flex(games: list):
                     BoxComponent(layout='vertical', margin='xl', spacing='sm', contents=game_buttons)
                 ],
                 paddingAll='20px',
-                backgroundColor='#ffffff'
+                backgroundColor=WHITE
             )
         )
     )
@@ -195,7 +199,7 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
             ButtonComponent(
                 action=FlexMessageAction(label=f"{key}. {value}", text=key),
                 style='secondary',
-                color='#f2f2f2',
+                color=LIGHT_GRAY,
                 height='sm'
             )
         )
@@ -215,13 +219,13 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
                             TextComponent(text=question['question'], size='md', color='#000000', wrap=True)
                         ],
                         paddingAll='16px',
-                        backgroundColor='#f2f2f2',
+                        backgroundColor=LIGHT_GRAY,
                         cornerRadius='8px'
                     ),
                     BoxComponent(layout='vertical', margin='xl', spacing='sm', contents=option_buttons)
                 ],
                 paddingAll='20px',
-                backgroundColor='#ffffff'
+                backgroundColor=WHITE
             )
         )
     )
@@ -242,7 +246,7 @@ def create_game_result_flex(result_text: str, stats: str, username: str):
                         margin='xl',
                         contents=[TextComponent(text=result_text, size='md', color='#000000', wrap=True)],
                         paddingAll='16px',
-                        backgroundColor='#f2f2f2',
+                        backgroundColor=LIGHT_GRAY,
                         cornerRadius='8px'
                     ),
                     BoxComponent(
@@ -254,11 +258,11 @@ def create_game_result_flex(result_text: str, stats: str, username: str):
                         layout='vertical',
                         margin='xl',
                         contents=[ButtonComponent(action=FlexMessageAction(label='لعبة جديدة', text='لعبه'),
-                                                  style='primary', color='#f2f2f2', height='sm')]
+                                                  style='primary', color=LIGHT_GRAY, height='sm')]
                     )
                 ],
                 paddingAll='20px',
-                backgroundColor='#ffffff'
+                backgroundColor=WHITE
             )
         )
     )
@@ -278,7 +282,7 @@ def create_riddle_flex(riddle: dict):
                         margin='xl',
                         contents=[TextComponent(text=riddle['question'], size='md', color='#000000', wrap=True)],
                         paddingAll='16px',
-                        backgroundColor='#f2f2f2',
+                        backgroundColor=LIGHT_GRAY,
                         cornerRadius='8px'
                     ),
                     BoxComponent(
@@ -287,14 +291,14 @@ def create_riddle_flex(riddle: dict):
                         spacing='sm',
                         contents=[
                             ButtonComponent(action=FlexMessageAction(label='تلميح', text='لمح'),
-                                            style='secondary', color='#f2f2f2', height='sm'),
+                                            style='secondary', color=LIGHT_GRAY, height='sm'),
                             ButtonComponent(action=FlexMessageAction(label='الإجابة', text='جاوب'),
-                                            style='primary', color='#f2f2f2', height='sm')
+                                            style='primary', color=LIGHT_GRAY, height='sm')
                         ]
                     )
                 ],
                 paddingAll='20px',
-                backgroundColor='#ffffff'
+                backgroundColor=WHITE
             )
         )
     )
