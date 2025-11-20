@@ -12,7 +12,8 @@ if not TOKEN or not SECRET:
 line, handler = LineBotApi(TOKEN), WebhookHandler(SECRET)
 
 # ألوان لافندر ناعمة
-C = {'bg':'#FEFCFF','glass':'#F5F0FA','card':'#FAF7FC','pri':'#B794F6','sec':'#D4B5F8','acc':'#9061F9','txt':'#4A4063','txt2':'#9B8AA8','bdr':'#E8DFF0','ok':'#9061F9'}
+C = {'bg':'#FEFCFF','glass':'#F5F0FA','card':'#FAF7FC','pri':'#B794F6','sec':'#D4B5F8','acc':'#9061F9',
+     'txt':'#4A4063','txt2':'#9B8AA8','bdr':'#E8DFF0','ok':'#9061F9'}
 
 class CM:
     def __init__(s):
@@ -63,18 +64,13 @@ class CM:
 
 cm = CM(); cm.init()
 
+# ----------------- Quick Reply -----------------
 def menu():
-    # زر ثابت ▫️ قبل باقي الأزرار
-    fixed_btn = QuickReplyButton(action=MessageAction(label="▫️", text="▫️"))
-    
-    # باقي الأزرار بدون إيموجي
-    items = [("سؤال","سؤال"),("تحدي","تحدي"),("اعتراف","اعتراف"),
-             ("موقف","موقف"),("منشن","منشن"),("اقتباسات","اقتباسات"),
-             ("لغز","لغز"),("تحليل","تحليل")]
-    
-    buttons = [fixed_btn] + [QuickReplyButton(action=MessageAction(label=l, text=t)) for l,t in items]
+    items = ["سؤال","تحدي","اعتراف","موقف","منشن","اقتباسات","لغز","تحليل"]
+    buttons = [QuickReplyButton(action=MessageAction(label=f"▫️{l}", text=l)) for l in items]
     return QuickReply(items=buttons)
 
+# ----------------- Flex Components -----------------
 def hdr(t, i=""):
     return BoxComponent(layout='vertical', backgroundColor=C['glass'], cornerRadius='16px', paddingAll='16px',
                         contents=[TextComponent(text=f"{i} {t}" if i else t, weight='bold', size='xl', color=C['txt'], align='center')])
@@ -82,16 +78,30 @@ def hdr(t, i=""):
 def help_flex():
     sec = [("سؤال","أسئلة متنوعة"),("تحدي","تحديات ممتعة"),("اعتراف","اعترافات جريئة"),("موقف","مواقف للنقاش"),
            ("منشن","أسئلة منشن"),("اقتباسات","حكم واقتباسات"),("لغز","ألغاز وتلميحات"),("تحليل","تحليل الشخصية")]
-    items = [BoxComponent(layout='horizontal', paddingAll='10px', backgroundColor=C['card'], cornerRadius='10px', spacing='md',
-                          contents=[TextComponent(text=i, size='sm', color=C['acc'], flex=0), TextComponent(text=d, size='sm', color=C['txt2'], flex=1)])
-             for i,d in sec]
-    return FlexSendMessage(alt_text="مساعدة",
-        contents=BubbleContainer(direction='rtl',
-            body=BoxComponent(layout='vertical', backgroundColor=C['bg'], paddingAll='20px',
-                contents=[hdr("بوت عناد المالكي"),
-                          TextComponent(text="اختر من الأزرار أدناه", size='xs', color=C['txt2'], align='center', margin='md'),
-                          SeparatorComponent(margin='lg', color=C['bdr']),
-                          BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=items)]
+
+    items = [
+        BoxComponent(
+            layout='horizontal', paddingAll='10px', backgroundColor=C['card'], cornerRadius='10px', spacing='md',
+            contents=[
+                TextComponent(text=f"▫️{i}", size='sm', color=C['acc'], flex=0),
+                TextComponent(text=d, size='sm', color=C['txt2'], flex=1)
+            ]
+        )
+        for i, d in sec
+    ]
+
+    return FlexSendMessage(
+        alt_text="مساعدة",
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical', backgroundColor=C['bg'], paddingAll='20px',
+                contents=[
+                    hdr("بوت عناد المالكي"),
+                    TextComponent(text="اختر من الأزرار أدناه", size='xs', color=C['txt2'], align='center', margin='md'),
+                    SeparatorComponent(margin='lg', color=C['bdr']),
+                    BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=items)
+                ]
             )
         )
     )
@@ -117,37 +127,7 @@ def ans_flex(a, t):
                           BoxComponent(layout='vertical', margin='xl', paddingAll='24px', backgroundColor=C['card'], cornerRadius='16px',
                                        contents=[TextComponent(text=a, size='xl', color=C['txt'], wrap=True, align='center', weight='bold')])])))
 
-def games_flex(g):
-    btns = [ButtonComponent(action=MessageAction(label=f"{i}. {x.get('title', f'تحليل {i}')}", text=str(i)), style='secondary', color=C['pri'], height='sm') for i,x in enumerate(g[:10],1)]
-    return FlexSendMessage(alt_text="تحليل الشخصية",
-        contents=BubbleContainer(direction='rtl',
-            body=BoxComponent(layout='vertical', backgroundColor=C['bg'], paddingAll='24px', contents=[hdr("تحليل الشخصية"),
-                                                                                                     BoxComponent(layout='vertical', margin='xl', spacing='sm', contents=btns)])))
-
-def gq_flex(t, q, p):
-    btns = [ButtonComponent(action=MessageAction(label=f"{k}. {v}", text=k), style='secondary', color=C['pri'], height='sm') for k,v in q['options'].items()]
-    return FlexSendMessage(alt_text=t,
-        contents=BubbleContainer(direction='rtl',
-            body=BoxComponent(layout='vertical', backgroundColor=C['bg'], paddingAll='20px',
-                              contents=[BoxComponent(layout='horizontal',
-                                                    contents=[TextComponent(text=t, weight='bold', size='lg', color=C['acc'], flex=1),
-                                                              TextComponent(text=p, size='xs', color=C['txt2'], flex=0, align='end')]),
-                                        SeparatorComponent(margin='md', color=C['bdr']),
-                                        BoxComponent(layout='vertical', margin='lg', paddingAll='16px', backgroundColor=C['glass'], cornerRadius='8px',
-                                                     contents=[TextComponent(text=q['question'], size='md', color=C['txt'], wrap=True)]),
-                                        BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=btns)])))
-
-def gr_flex(r):
-    return FlexSendMessage(alt_text="النتيجة",
-        contents=BubbleContainer(direction='rtl',
-            body=BoxComponent(layout='vertical', backgroundColor=C['bg'], paddingAll='20px',
-                              contents=[TextComponent(text='نتيجة التحليل', weight='bold', size='xl', color=C['acc'], align='center'),
-                                        SeparatorComponent(margin='md', color=C['bdr']),
-                                        BoxComponent(layout='vertical', margin='lg', paddingAll='16px', backgroundColor=C['glass'], cornerRadius='8px',
-                                                     contents=[TextComponent(text=r, size='md', color=C['txt'], wrap=True, lineSpacing='6px')]),
-                                        BoxComponent(layout='vertical', margin='xl',
-                                                     contents=[ButtonComponent(action=MessageAction(label='تحليل جديد', text='تحليل'), style='primary', color=C['pri'], height='sm')])])))
-
+# ----------------- State & Commands -----------------
 rdl_st, gm_st = {}, {}
 CMDS = {"سؤال":["سؤال","سوال"], "تحدي":["تحدي"], "اعتراف":["اعتراف"], "منشن":["منشن"], "موقف":["موقف"], "لغز":["لغز"], "اقتباسات":["اقتباسات","اقتباس","حكمة"]}
 
@@ -170,6 +150,7 @@ def reply(tk, msg):
         line.reply_message(tk, msg)
     except Exception as e: logging.error(f"Err:{e}")
 
+# ----------------- Routes -----------------
 @app.route("/", methods=["GET"])
 def home(): return "OK", 200
 
@@ -185,17 +166,14 @@ def callback():
     except: abort(500)
     return "OK"
 
+# ----------------- Message Handling -----------------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_msg(ev):
     uid, txt = ev.source.user_id, ev.message.text.strip()
     tl = txt.lower()
     try:
         if tl=="مساعدة": reply(ev.reply_token, help_flex()); return
-        
-        if tl=="▫️":
-            reply(ev.reply_token, TextSendMessage(text="لقد ضغطت الزر الثابت ▫️"))
-            return
-        
+
         cmd = find_cmd(txt)
         if cmd:
             if cmd=="لغز":
@@ -213,10 +191,9 @@ def handle_msg(ev):
                 reply(ev.reply_token, TextSendMessage(text=f"موقف للنقاش\n\n{s}") if s else TextSendMessage(text="لا توجد مواقف"))
             else:
                 c = cm.get(cmd)
-                ic = {"سؤال":"","تحدي":"","اعتراف":""}.get(cmd,"")
-                reply(ev.reply_token, TextSendMessage(text=f"{ic} {cmd}\n\n{c}") if c else TextSendMessage(text=f"لا توجد بيانات"))
+                reply(ev.reply_token, TextSendMessage(text=f"{cmd}\n\n{c}") if c else TextSendMessage(text=f"لا توجد بيانات"))
             return
-        
+
         if tl=="لمح":
             if uid in rdl_st: reply(ev.reply_token, ans_flex(rdl_st[uid].get('hint','لا يوجد'),"لمح"))
             else: reply(ev.reply_token, TextSendMessage(text="اطلب لغز أولاً"))
@@ -225,27 +202,12 @@ def handle_msg(ev):
             if uid in rdl_st: r = rdl_st.pop(uid); reply(ev.reply_token, ans_flex(r['answer'], "جاوب"))
             else: reply(ev.reply_token, TextSendMessage(text="اطلب لغز أولاً"))
             return
-        
+
         if tl in ["تحليل","تحليل شخصية","شخصية"]:
             if cm.games: reply(ev.reply_token, games_flex(cm.games))
             else: reply(ev.reply_token, TextSendMessage(text="لا توجد تحليلات متاحة"))
             return
-        
-        if txt.isdigit() and uid not in gm_st and 1 <= int(txt) <= len(cm.games):
-            gi = int(txt)-1; gm_st[uid] = {"gi":gi, "qi":0, "ans":[]}
-            g = cm.games[gi]; reply(ev.reply_token, gq_flex(g.get('title', f'تحليل {int(txt)}'), g["questions"][0], f"1/{len(g['questions'])}"))
-            return
-        
-        if uid in gm_st:
-            st = gm_st[uid]
-            amap = {"1":"أ","2":"ب","3":"ج","a":"أ","b":"ب","c":"ج","أ":"أ","ب":"ب","ج":"ج"}
-            ans = amap.get(tl, None)
-            if ans:
-                st["ans"].append(ans); g = cm.games[st["gi"]]; st["qi"] += 1
-                if st["qi"] < len(g["questions"]): reply(ev.reply_token, gq_flex(g.get('title','تحليل'), g["questions"][st["qi"]], f"{st['qi']+1}/{len(g['questions'])}"))
-                else: reply(ev.reply_token, gr_flex(calc_res(st["ans"], st["gi"]))); del gm_st[uid]
-                return
-        
+
         reply(ev.reply_token, TextSendMessage(text="اكتب 'مساعدة' لعرض الأوامر"))
     except Exception as e: logging.error(f"Err:{e}"); reply(ev.reply_token, TextSendMessage(text="حدث خطأ، حاول مرة أخرى"))
 
