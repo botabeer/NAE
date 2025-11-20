@@ -10,7 +10,8 @@ TOKEN,SECRET=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"),os.getenv("LINE_CHANNEL_SECR
 if not TOKEN or not SECRET:raise RuntimeError("Set LINE tokens")
 line,handler=LineBotApi(TOKEN),WebhookHandler(SECRET)
 
-C={'bg':'#0F0F1E','glass':'#1A1A2E','card':'#16162A','pri':'#8B5CF6','sec':'#A78BFA','txt':'#FFFFFF','txt2':'#E9D5FF','txt3':'#C4B5FD','bdr':'#2D2D4A','ok':'#10B981'}
+# ألوان لافندر ناعمة
+C={'bg':'#FEFCFF','glass':'#F5F0FA','card':'#FAF7FC','pri':'#B794F6','sec':'#D4B5F8','acc':'#9061F9','txt':'#4A4063','txt2':'#9B8AA8','bdr':'#E8DFF0','ok':'#9061F9'}
 
 class CM:
     def __init__(s):s.files={};s.mention=[];s.riddles=[];s.games=[];s.poems=[];s.quotes=[];s.situations=[];s.results={};s.used={}
@@ -45,23 +46,21 @@ class CM:
 cm=CM();cm.init()
 
 def menu():
-    items=[("💬سؤال","سؤال"),("🎯تحدي","تحدي"),("💭اعتراف","اعتراف"),("🎭موقف","موقف"),("📝منشن","منشن"),("🧩لغز","لغز"),("🔮تحليل","تحليل"),("📜شعر","شعر"),("💬اقتباس","اقتباسات")]
+    items=[("💬سؤال","سؤال"),("🎯تحدي","تحدي"),("💭اعتراف","اعتراف"),("🎭موقف","موقف"),("📝منشن","منشن"),("📜شعر","شعر"),("💬اقتباس","اقتباسات"),("🧩لغز","لغز"),("🔮تحليل","تحليل")]
     return QuickReply(items=[QuickReplyButton(action=MessageAction(label=l,text=t))for l,t in items])
 
-def hdr(t,i=""):return BoxComponent(layout='vertical',backgroundColor=C['glass'],cornerRadius='16px',paddingAll='16px',contents=[TextComponent(text=f"{i} {t}"if i else t,weight='bold',size='xl',color=C['txt2'],align='center')])
-def crd(t):return BoxComponent(layout='vertical',backgroundColor=C['card'],cornerRadius='16px',paddingAll='20px',margin='lg',contents=[TextComponent(text=t,size='lg',color=C['txt'],wrap=True,lineSpacing='8px')])
-def bdg(t):return BoxComponent(layout='horizontal',backgroundColor=C['glass'],cornerRadius='20px',paddingAll='8px',paddingStart='16px',paddingEnd='16px',margin='lg',justifyContent='center',contents=[TextComponent(text=t,size='sm',color=C['txt3'])])
+def hdr(t,i=""):return BoxComponent(layout='vertical',backgroundColor=C['glass'],cornerRadius='16px',paddingAll='16px',contents=[TextComponent(text=f"{i} {t}"if i else t,weight='bold',size='xl',color=C['txt'],align='center')])
 
 def help_flex():
-    sec=[("💬 سؤال","أسئلة متنوعة"),("🎯 تحدي","تحديات ممتعة"),("💭 اعتراف","اعترافات جريئة"),("🎭 موقف","مواقف للنقاش"),("📝 منشن","أسئلة منشن"),("🧩 لغز","ألغاز وتلميحات"),("🔮 تحليل","تحليل الشخصية"),("📜 شعر","أبيات شعرية"),("💬 اقتباس","حكم واقتباسات")]
-    items=[BoxComponent(layout='horizontal',paddingAll='10px',backgroundColor=C['card'],cornerRadius='10px',spacing='md',contents=[TextComponent(text=i,size='sm',color=C['pri'],flex=0),TextComponent(text=d,size='sm',color=C['txt3'],flex=1)])for i,d in sec]
-    return FlexSendMessage(alt_text="مساعدة",contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='20px',contents=[hdr("بوت عناد المالكي","🤖"),TextComponent(text="اختر من الأزرار أدناه",size='xs',color=C['txt3'],align='center',margin='md'),SeparatorComponent(margin='lg',color=C['bdr']),BoxComponent(layout='vertical',margin='lg',spacing='sm',contents=items)])))
+    sec=[("💬 سؤال","أسئلة متنوعة"),("🎯 تحدي","تحديات ممتعة"),("💭 اعتراف","اعترافات جريئة"),("🎭 موقف","مواقف للنقاش"),("📝 منشن","أسئلة منشن"),("📜 شعر","أبيات شعرية"),("💬 اقتباس","حكم واقتباسات"),("🧩 لغز","ألغاز وتلميحات"),("🔮 تحليل","تحليل الشخصية")]
+    items=[BoxComponent(layout='horizontal',paddingAll='10px',backgroundColor=C['card'],cornerRadius='10px',spacing='md',contents=[TextComponent(text=i,size='sm',color=C['acc'],flex=0),TextComponent(text=d,size='sm',color=C['txt2'],flex=1)])for i,d in sec]
+    return FlexSendMessage(alt_text="مساعدة",contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='20px',contents=[hdr("بوت عناد المالكي","🤖"),TextComponent(text="اختر من الأزرار أدناه",size='xs',color=C['txt2'],align='center',margin='md'),SeparatorComponent(margin='lg',color=C['bdr']),BoxComponent(layout='vertical',margin='lg',spacing='sm',contents=items)])))
 
 def puzzle_flex(p):
-    return FlexSendMessage(alt_text="لغز",contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='24px',contents=[hdr("لغز","🧩"),BoxComponent(layout='vertical',margin='xl',paddingAll='24px',backgroundColor=C['card'],cornerRadius='16px',contents=[TextComponent(text=p['question'],size='xl',color=C['txt'],wrap=True,align='center',weight='bold')]),BoxComponent(layout='vertical',margin='xl',spacing='md',contents=[ButtonComponent(action=MessageAction(label='💡 تلميح',text='لمح'),style='secondary',color=C['sec'],height='md'),ButtonComponent(action=MessageAction(label='✅ الجواب',text='جواب'),style='primary',color=C['pri'],height='md')])])))
+    return FlexSendMessage(alt_text="لغز",contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='24px',contents=[hdr("لغز","🧩"),BoxComponent(layout='vertical',margin='xl',paddingAll='24px',backgroundColor=C['card'],cornerRadius='16px',contents=[TextComponent(text=p['question'],size='xl',color=C['txt'],wrap=True,align='center',weight='bold')]),BoxComponent(layout='vertical',margin='xl',spacing='md',contents=[ButtonComponent(action=MessageAction(label='💡 لمح',text='لمح'),style='secondary',color=C['sec'],height='md'),ButtonComponent(action=MessageAction(label='✅ جاوب',text='جاوب'),style='primary',color=C['pri'],height='md')])])))
 
 def ans_flex(a,t):
-    i,cl=("✅",C['ok'])if"جواب"in t else("💡",C['sec'])
+    i,cl=("✅",C['ok'])if"جاوب"in t else("💡",C['sec'])
     return FlexSendMessage(alt_text=t,contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='24px',contents=[BoxComponent(layout='vertical',paddingAll='16px',backgroundColor=C['glass'],cornerRadius='16px',contents=[TextComponent(text=f"{i} {t}",weight='bold',size='xl',color=cl,align='center')]),BoxComponent(layout='vertical',margin='xl',paddingAll='24px',backgroundColor=C['card'],cornerRadius='16px',contents=[TextComponent(text=a,size='xl',color=C['txt'],wrap=True,align='center',weight='bold')])])))
 
 def games_flex(g):
@@ -70,10 +69,10 @@ def games_flex(g):
 
 def gq_flex(t,q,p):
     btns=[ButtonComponent(action=MessageAction(label=f"{k}. {v}",text=k),style='secondary',color=C['pri'],height='sm')for k,v in q['options'].items()]
-    return FlexSendMessage(alt_text=t,contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='20px',contents=[BoxComponent(layout='horizontal',contents=[TextComponent(text=t,weight='bold',size='lg',color=C['pri'],flex=1),TextComponent(text=p,size='xs',color=C['txt3'],flex=0,align='end')]),SeparatorComponent(margin='md',color=C['bdr']),BoxComponent(layout='vertical',margin='lg',paddingAll='16px',backgroundColor=C['glass'],cornerRadius='8px',contents=[TextComponent(text=q['question'],size='md',color=C['txt'],wrap=True)]),BoxComponent(layout='vertical',margin='lg',spacing='sm',contents=btns)])))
+    return FlexSendMessage(alt_text=t,contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='20px',contents=[BoxComponent(layout='horizontal',contents=[TextComponent(text=t,weight='bold',size='lg',color=C['acc'],flex=1),TextComponent(text=p,size='xs',color=C['txt2'],flex=0,align='end')]),SeparatorComponent(margin='md',color=C['bdr']),BoxComponent(layout='vertical',margin='lg',paddingAll='16px',backgroundColor=C['glass'],cornerRadius='8px',contents=[TextComponent(text=q['question'],size='md',color=C['txt'],wrap=True)]),BoxComponent(layout='vertical',margin='lg',spacing='sm',contents=btns)])))
 
 def gr_flex(r):
-    return FlexSendMessage(alt_text="النتيجة",contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='20px',contents=[TextComponent(text='🔮 نتيجة التحليل',weight='bold',size='xl',color=C['pri'],align='center'),SeparatorComponent(margin='md',color=C['bdr']),BoxComponent(layout='vertical',margin='lg',paddingAll='16px',backgroundColor=C['glass'],cornerRadius='8px',contents=[TextComponent(text=r,size='md',color=C['txt'],wrap=True,lineSpacing='6px')]),BoxComponent(layout='vertical',margin='xl',contents=[ButtonComponent(action=MessageAction(label='🔮 تحليل جديد',text='تحليل'),style='primary',color=C['pri'],height='sm')])])))
+    return FlexSendMessage(alt_text="النتيجة",contents=BubbleContainer(direction='rtl',body=BoxComponent(layout='vertical',backgroundColor=C['bg'],paddingAll='20px',contents=[TextComponent(text='🔮 نتيجة التحليل',weight='bold',size='xl',color=C['acc'],align='center'),SeparatorComponent(margin='md',color=C['bdr']),BoxComponent(layout='vertical',margin='lg',paddingAll='16px',backgroundColor=C['glass'],cornerRadius='8px',contents=[TextComponent(text=r,size='md',color=C['txt'],wrap=True,lineSpacing='6px')]),BoxComponent(layout='vertical',margin='xl',contents=[ButtonComponent(action=MessageAction(label='🔮 تحليل جديد',text='تحليل'),style='primary',color=C['pri'],height='sm')])])))
 
 rdl_st,gm_st={},{}
 CMDS={"سؤال":["سؤال","سوال"],"تحدي":["تحدي"],"اعتراف":["اعتراف"],"منشن":["منشن"],"موقف":["موقف"],"لغز":["لغز"],"شعر":["شعر"],"اقتباسات":["اقتباسات","اقتباس","حكمة"]}
@@ -141,12 +140,12 @@ def handle_msg(ev):
                 reply(ev.reply_token,TextSendMessage(text=f"{ic} {cmd}\n\n{c}")if c else TextSendMessage(text=f"لا توجد بيانات"))
             return
         
-        if tl in["لمح","تلميح"]:
-            if uid in rdl_st:reply(ev.reply_token,ans_flex(rdl_st[uid].get('hint','لا يوجد'),"تلميح"))
+        if tl=="لمح":
+            if uid in rdl_st:reply(ev.reply_token,ans_flex(rdl_st[uid].get('hint','لا يوجد'),"لمح"))
             else:reply(ev.reply_token,TextSendMessage(text="🧩 اطلب لغز أولاً"))
             return
-        if tl in["جواب","الجواب","اجابة"]:
-            if uid in rdl_st:r=rdl_st.pop(uid);reply(ev.reply_token,ans_flex(r['answer'],"الجواب"))
+        if tl=="جاوب":
+            if uid in rdl_st:r=rdl_st.pop(uid);reply(ev.reply_token,ans_flex(r['answer'],"جاوب"))
             else:reply(ev.reply_token,TextSendMessage(text="🧩 اطلب لغز أولاً"))
             return
         
