@@ -13,7 +13,7 @@ from linebot.models import (
     MessageEvent, TextMessage, TextSendMessage, FlexSendMessage,
     QuickReply, QuickReplyButton, MessageAction, BubbleContainer,
     BoxComponent, TextComponent, ButtonComponent, MessageAction as FlexMessageAction,
-    SeparatorComponent
+    SeparatorComponent, FillerComponent
 )
 
 # ==================== إعداد Logging ====================
@@ -40,6 +40,40 @@ db_lock = Lock()
 players_lock = Lock()
 names_cache_lock = Lock()
 
+# ==================== الألوان الملكية ====================
+COLORS = {
+    # الألوان الأساسية
+    'primary': '#6B21A8',
+    'secondary': '#9333EA',
+    'accent': '#A855F7',
+    'light': '#D8B4FE',
+    
+    # الخلفيات
+    'background': '#FFFFFF',
+    'glass_bg': '#FAF8FC',
+    'card_bg': '#FEFCFF',
+    'card_hover': '#F9F5FF',
+    
+    # النصوص
+    'text_main': '#1F2937',
+    'text_secondary': '#581C87',
+    'text_light': '#6B7280',
+    'text_muted': '#9CA3AF',
+    
+    # الحدود
+    'border': '#EDE9FE',
+    'separator': '#F3E8FF',
+    
+    # الحالات
+    'success': '#10B981',
+    'warning': '#F59E0B',
+    'error': '#EF4444',
+    
+    # الشارات
+    'badge_bg': '#F3E8FF',
+    'badge_text': '#6B21A8',
+}
+
 # ==================== قاعدة البيانات ====================
 DB_PATH = "bot_database.db"
 
@@ -49,7 +83,6 @@ def init_db():
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # جدول المستخدمين
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id TEXT PRIMARY KEY,
@@ -62,7 +95,6 @@ def init_db():
             )
         ''')
         
-        # جدول السجل
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS game_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +106,6 @@ def init_db():
             )
         ''')
         
-        # فهارس للأداء
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_points ON users(total_points DESC)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_user ON game_history(user_id)')
         
@@ -83,13 +114,11 @@ def init_db():
         logger.info("تم إنشاء قاعدة البيانات بنجاح")
 
 def get_db_connection():
-    """إنشاء اتصال بقاعدة البيانات"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 def ensure_user_exists(user_id: str):
-    """التأكد من وجود سجل المستخدم"""
     with db_lock:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -103,17 +132,14 @@ def ensure_user_exists(user_id: str):
         conn.close()
 
 def update_user_points(user_id: str, display_name: str, points: int, won: bool, game_type: str):
-    """تحديث نقاط المستخدم وحفظ السجل"""
     with db_lock:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # التأكد من وجود المستخدم
         cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
         user = cursor.fetchone()
         
         if user:
-            # تحديث البيانات
             cursor.execute('''
                 UPDATE users 
                 SET display_name = ?,
@@ -124,13 +150,11 @@ def update_user_points(user_id: str, display_name: str, points: int, won: bool, 
                 WHERE user_id = ?
             ''', (display_name, points, 1 if won else 0, datetime.now().isoformat(), user_id))
         else:
-            # إنشاء مستخدم جديد
             cursor.execute('''
                 INSERT INTO users (user_id, display_name, total_points, games_played, wins, last_played, registered_at)
                 VALUES (?, ?, ?, 1, ?, ?, ?)
             ''', (user_id, display_name, points, 1 if won else 0, datetime.now().isoformat(), datetime.now().isoformat()))
         
-        # حفظ في السجل
         cursor.execute('''
             INSERT INTO game_history (user_id, game_type, points, won, played_at)
             VALUES (?, ?, ?, ?, ?)
@@ -140,7 +164,6 @@ def update_user_points(user_id: str, display_name: str, points: int, won: bool, 
         conn.close()
 
 def get_user_stats(user_id: str) -> Optional[Dict]:
-    """جلب إحصائيات المستخدم"""
     with db_lock:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -153,7 +176,6 @@ def get_user_stats(user_id: str) -> Optional[Dict]:
         return None
 
 def get_leaderboard(limit: int = 10) -> List[Dict]:
-    """جلب قائمة المتصدرين"""
     with db_lock:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -174,22 +196,17 @@ user_names_cache = {}
 user_message_count = {}
 
 def get_user_profile_safe(user_id: str) -> str:
-    """جلب اسم المستخدم بطريقة آمنة مع نظام ثلاثي المستويات"""
-    # المستوى 1: الذاكرة المؤقتة
     with names_cache_lock:
         if user_id in user_names_cache:
             return user_names_cache[user_id]
     
-    # المستوى 2: LINE API
     try:
         profile = line_bot_api.get_profile(user_id)
         display_name = profile.display_name
         
-        # حفظ في الذاكرة المؤقتة
         with names_cache_lock:
             user_names_cache[user_id] = display_name
         
-        # تحديث قاعدة البيانات
         with db_lock:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -207,7 +224,6 @@ def get_user_profile_safe(user_id: str) -> str:
     except Exception as e:
         logger.error(f"خطأ غير متوقع: {e}")
     
-    # المستوى 3: الاسم البديل
     fallback_name = f"لاعب {user_id[-4:]}"
     
     with names_cache_lock:
@@ -216,7 +232,6 @@ def get_user_profile_safe(user_id: str) -> str:
     return fallback_name
 
 def check_rate_limit(user_id: str, max_messages: int = 30, time_window: int = 60) -> bool:
-    """فحص حد المعدل للرسائل"""
     now = datetime.now()
     
     if user_id not in user_message_count:
@@ -229,7 +244,6 @@ def check_rate_limit(user_id: str, max_messages: int = 30, time_window: int = 60
     user_data = user_message_count[user_id]
     
     if now >= user_data['reset_time']:
-        # إعادة تعيين العداد
         user_data['count'] = 1
         user_data['reset_time'] = now + timedelta(seconds=time_window)
         return True
@@ -350,38 +364,10 @@ content_manager = ContentManager()
 content_manager.initialize()
 init_db()
 
-# ==================== ألوان التصميم ====================
-COLORS = {
-    'primary': '#8B7FD6',      # بنفسجي فاتح
-    'secondary': '#B8ADE3',    # بنفسجي أفتح
-    'background': '#FFFFFF',   # أبيض
-    'text_main': '#4A4A4A',    # رمادي داكن
-    'text_light': '#8E8E8E',   # رمادي فاتح
-    'border': '#E8E3F5',       # بنفسجي باهت جداً
-    'success': '#7C9F8B',      # أخضر هادئ
-}
-
-# ==================== القوائم ====================
-def create_main_menu() -> QuickReply:
-    return QuickReply(items=[
-        QuickReplyButton(action=MessageAction(label="سؤال", text="سؤال")),
-        QuickReplyButton(action=MessageAction(label="تحدي", text="تحدي")),
-        QuickReplyButton(action=MessageAction(label="اعتراف", text="اعتراف")),
-        QuickReplyButton(action=MessageAction(label="منشن", text="منشن")),
-        QuickReplyButton(action=MessageAction(label="المزيد", text="المزيد")),
-    ])
-
-def create_secondary_menu() -> QuickReply:
-    return QuickReply(items=[
-        QuickReplyButton(action=MessageAction(label="شعر", text="شعر")),
-        QuickReplyButton(action=MessageAction(label="اقتباسات", text="اقتباسات")),
-        QuickReplyButton(action=MessageAction(label="لغز", text="لغز")),
-        QuickReplyButton(action=MessageAction(label="إيموجي", text="إيموجي")),
-        QuickReplyButton(action=MessageAction(label="الرئيسية", text="القائمة")),
-    ])
-
 # ==================== Flex Messages ====================
+
 def create_welcome_flex():
+    """بطاقة الترحيب"""
     return FlexSendMessage(
         alt_text="مرحباً بك",
         contents=BubbleContainer(
@@ -389,14 +375,29 @@ def create_welcome_flex():
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='مرحباً بك',
-                        weight='bold',
-                        size='xl',
-                        color=COLORS['text_main'],
-                        align='center'
+                    BoxComponent(
+                        layout='vertical',
+                        contents=[
+                            TextComponent(
+                                text='مرحباً بك',
+                                weight='bold',
+                                size='xxl',
+                                color=COLORS['text_secondary'],
+                                align='center'
+                            ),
+                            TextComponent(
+                                text='بوت التفاعل الذكي',
+                                size='sm',
+                                color=COLORS['text_light'],
+                                align='center',
+                                margin='sm'
+                            )
+                        ],
+                        paddingAll='20px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
                     ),
-                    SeparatorComponent(margin='lg', color=COLORS['border']),
+                    SeparatorComponent(margin='xl', color=COLORS['separator']),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
@@ -407,21 +408,7 @@ def create_welcome_flex():
                             create_menu_item('اعتراف', 'اعترافات صادقة'),
                             create_menu_item('منشن', 'أسئلة المنشن'),
                             create_menu_item('لعبة', 'ألعاب الشخصية'),
-                            create_menu_item('ترتيب', 'قائمة المتصدرين'),
-                        ]
-                    ),
-                    SeparatorComponent(margin='xl', color=COLORS['border']),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='md',
-                        contents=[
-                            TextComponent(
-                                text='بوت عناد المالكي',
-                                size='xs',
-                                color=COLORS['text_light'],
-                                align='center',
-                                style='italic'
-                            )
+                            create_menu_item('ترتيب', 'المتصدرين'),
                         ]
                     )
                 ],
@@ -432,6 +419,7 @@ def create_welcome_flex():
     )
 
 def create_menu_item(title: str, desc: str):
+    """عنصر قائمة"""
     return BoxComponent(
         layout='vertical',
         spacing='xs',
@@ -447,10 +435,14 @@ def create_menu_item(title: str, desc: str):
                 size='xs',
                 color=COLORS['text_light']
             )
-        ]
+        ],
+        paddingAll='12px',
+        backgroundColor=COLORS['card_bg'],
+        cornerRadius='12px'
     )
 
 def create_content_flex(title: str, content: str, category: str):
+    """بطاقة المحتوى"""
     return FlexSendMessage(
         alt_text=title,
         contents=BubbleContainer(
@@ -458,62 +450,64 @@ def create_content_flex(title: str, content: str, category: str):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text=title,
-                        weight='bold',
-                        size='lg',
-                        color=COLORS['primary'],
-                        align='start'
-                    ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
                     BoxComponent(
                         layout='vertical',
-                        margin='lg',
                         contents=[
                             TextComponent(
-                                text=content,
-                                size='md',
-                                color=COLORS['text_main'],
-                                wrap=True,
-                                lineSpacing='6px'
+                                text=title,
+                                weight='bold',
+                                size='xl',
+                                color=COLORS['text_secondary'],
+                                align='center'
                             )
-                        ]
+                        ],
+                        paddingAll='16px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
                     ),
                     BoxComponent(
                         layout='vertical',
                         margin='xl',
                         contents=[
                             TextComponent(
-                                text=category,
-                                size='xs',
-                                color=COLORS['text_light'],
-                                align='center'
+                                text=content,
+                                size='lg',
+                                color=COLORS['text_main'],
+                                wrap=True,
+                                lineSpacing='8px'
                             )
-                        ]
+                        ],
+                        paddingAll='20px',
+                        backgroundColor=COLORS['card_bg'],
+                        cornerRadius='16px'
+                    ),
+                    BoxComponent(
+                        layout='horizontal',
+                        margin='lg',
+                        contents=[
+                            TextComponent(
+                                text=category,
+                                size='sm',
+                                color=COLORS['badge_text']
+                            )
+                        ],
+                        paddingAll='8px',
+                        backgroundColor=COLORS['badge_bg'],
+                        cornerRadius='20px',
+                        paddingStart='16px',
+                        paddingEnd='16px',
+                        alignItems='center',
+                        justifyContent='center'
                     )
                 ],
-                paddingAll='20px',
+                paddingAll='24px',
                 backgroundColor=COLORS['background']
             )
         )
     )
 
 def create_puzzle_flex(puzzle: dict, puzzle_type: str):
-    buttons = [
-        ButtonComponent(
-            action=FlexMessageAction(label='تلميح', text='لمح'),
-            style='secondary',
-            color=COLORS['secondary'],
-            height='sm'
-        ),
-        ButtonComponent(
-            action=FlexMessageAction(label='الإجابة', text='جاوب'),
-            style='primary',
-            color=COLORS['primary'],
-            height='sm'
-        )
-    ]
-    
+    """بطاقة اللغز"""
     return FlexSendMessage(
         alt_text=f"لغز {puzzle_type}",
         contents=BubbleContainer(
@@ -521,45 +515,67 @@ def create_puzzle_flex(puzzle: dict, puzzle_type: str):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text=f"لغز {puzzle_type}",
-                        weight='bold',
-                        size='lg',
-                        color=COLORS['primary'],
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
                     BoxComponent(
                         layout='vertical',
-                        margin='lg',
+                        contents=[
+                            TextComponent(
+                                text=f'لغز {puzzle_type}',
+                                weight='bold',
+                                size='xl',
+                                color=COLORS['text_secondary'],
+                                align='center'
+                            )
+                        ],
+                        backgroundColor=COLORS['glass_bg'],
+                        paddingAll='16px',
+                        cornerRadius='16px'
+                    ),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
                         contents=[
                             TextComponent(
                                 text=puzzle['question'],
-                                size='md',
+                                size='xl',
                                 color=COLORS['text_main'],
                                 wrap=True,
                                 align='center',
-                                lineSpacing='6px'
+                                lineSpacing='8px',
+                                weight='bold'
                             )
                         ],
-                        paddingAll='16px',
-                        backgroundColor='#F9F8FD',
-                        cornerRadius='8px'
+                        paddingAll='24px',
+                        backgroundColor=COLORS['card_bg'],
+                        cornerRadius='16px'
                     ),
                     BoxComponent(
                         layout='vertical',
-                        margin='lg',
-                        spacing='sm',
-                        contents=buttons
+                        margin='xl',
+                        spacing='md',
+                        contents=[
+                            ButtonComponent(
+                                action=FlexMessageAction(label='تلميح', text='لمح'),
+                                style='secondary',
+                                color=COLORS['secondary'],
+                                height='md'
+                            ),
+                            ButtonComponent(
+                                action=FlexMessageAction(label='الإجابة', text='جاوب'),
+                                style='primary',
+                                color=COLORS['primary'],
+                                height='md'
+                            )
+                        ]
                     )
                 ],
-                paddingAll='20px',
+                paddingAll='24px',
                 backgroundColor=COLORS['background']
             )
         )
     )
 
 def create_poem_flex(poem: dict):
+    """بطاقة الشعر"""
     return FlexSendMessage(
         alt_text="شعر",
         contents=BubbleContainer(
@@ -567,52 +583,62 @@ def create_poem_flex(poem: dict):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='شعر',
-                        weight='bold',
-                        size='lg',
-                        color=COLORS['primary'],
-                        align='center'
+                    BoxComponent(
+                        layout='vertical',
+                        contents=[
+                            TextComponent(
+                                text='قصيدة',
+                                weight='bold',
+                                size='xl',
+                                color=COLORS['text_secondary'],
+                                align='center'
+                            )
+                        ],
+                        paddingAll='16px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
                     ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
+                        contents=[
+                            TextComponent(
+                                text=poem.get('text', ''),
+                                size='lg',
+                                color=COLORS['text_main'],
+                                wrap=True,
+                                align='center',
+                                lineSpacing='12px'
+                            )
+                        ],
+                        paddingAll='24px',
+                        backgroundColor=COLORS['card_bg'],
+                        cornerRadius='16px'
+                    ),
                     BoxComponent(
                         layout='vertical',
                         margin='lg',
                         contents=[
+                            SeparatorComponent(color=COLORS['separator']),
                             TextComponent(
-                                text=poem.get('text', ''),
+                                text=poem.get('poet', 'مجهول'),
                                 size='md',
-                                color=COLORS['text_main'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='8px'
-                            )
-                        ],
-                        paddingAll='16px',
-                        backgroundColor='#F9F8FD',
-                        cornerRadius='8px'
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='md',
-                        contents=[
-                            TextComponent(
-                                text=f"— {poem.get('poet', 'مجهول')}",
-                                size='sm',
-                                color=COLORS['text_light'],
+                                color=COLORS['text_secondary'],
                                 align='end',
-                                style='italic'
+                                margin='md',
+                                weight='bold'
                             )
                         ]
                     )
                 ],
-                paddingAll='20px',
+                paddingAll='24px',
                 backgroundColor=COLORS['background']
             )
         )
     )
 
 def create_quote_flex(quote: dict):
+    """بطاقة الاقتباس"""
     return FlexSendMessage(
         alt_text="اقتباس",
         contents=BubbleContainer(
@@ -620,68 +646,85 @@ def create_quote_flex(quote: dict):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='اقتباس',
-                        weight='bold',
-                        size='lg',
-                        color=COLORS['primary'],
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
                     BoxComponent(
                         layout='vertical',
-                        margin='lg',
+                        margin='xl',
                         contents=[
                             TextComponent(
-                                text=f'"{quote.get("text", "")}"',
-                                size='md',
+                                text=quote.get('text', ''),
+                                size='xl',
                                 color=COLORS['text_main'],
                                 wrap=True,
                                 align='center',
-                                lineSpacing='6px'
+                                lineSpacing='8px'
                             )
-                        ]
+                        ],
+                        paddingAll='20px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
                     ),
                     BoxComponent(
                         layout='vertical',
-                        margin='md',
+                        margin='xl',
                         contents=[
                             TextComponent(
                                 text=quote.get('author', 'مجهول'),
-                                size='sm',
-                                color=COLORS['text_light'],
+                                size='lg',
+                                color=COLORS['primary'],
                                 align='center',
                                 weight='bold'
                             )
-                        ]
+                        ],
+                        paddingAll='12px',
+                        backgroundColor=COLORS['badge_bg'],
+                        cornerRadius='20px'
                     )
                 ],
-                paddingAll='24px',
-                backgroundColor='#F9F8FD'
+                paddingAll='28px',
+                backgroundColor=COLORS['card_bg']
             )
         )
     )
 
 def create_leaderboard_flex(players: List[Dict]):
+    """قائمة المتصدرين"""
     player_items = []
-    medals = ['🥇', '🥈', '🥉']
     
     for i, player in enumerate(players[:10], 1):
-        medal = medals[i-1] if i <= 3 else f"{i}."
+        rank_display = f"#{i}"
         name = player.get('display_name', f"لاعب {player['user_id'][-4:]}")
         points = player.get('total_points', 0)
         games = player.get('games_played', 0)
+        
+        if i == 1:
+            bg_color = '#FEF3C7'
+        elif i == 2:
+            bg_color = '#F3F4F6'
+        elif i == 3:
+            bg_color = '#FED7AA'
+        else:
+            bg_color = COLORS['card_bg']
         
         player_items.append(
             BoxComponent(
                 layout='horizontal',
                 spacing='md',
                 contents=[
-                    TextComponent(
-                        text=medal,
-                        size='md',
+                    BoxComponent(
+                        layout='vertical',
+                        contents=[
+                            TextComponent(
+                                text=rank_display,
+                                size='lg',
+                                align='center',
+                                weight='bold',
+                                color=COLORS['primary']
+                            )
+                        ],
                         flex=0,
-                        align='start'
+                        width='50px',
+                        alignItems='center',
+                        justifyContent='center'
                     ),
                     BoxComponent(
                         layout='vertical',
@@ -689,30 +732,43 @@ def create_leaderboard_flex(players: List[Dict]):
                         contents=[
                             TextComponent(
                                 text=name,
-                                size='sm',
+                                size='md',
                                 color=COLORS['text_main'],
                                 weight='bold'
                             ),
                             TextComponent(
                                 text=f"{games} لعبة",
                                 size='xs',
-                                color=COLORS['text_light']
+                                color=COLORS['text_light'],
+                                margin='xs'
                             )
                         ]
                     ),
-                    TextComponent(
-                        text=f"{points}",
-                        size='md',
-                        color=COLORS['primary'],
-                        weight='bold',
+                    BoxComponent(
+                        layout='vertical',
+                        contents=[
+                            TextComponent(
+                                text=f"{points}",
+                                size='xl',
+                                color=COLORS['primary'],
+                                weight='bold',
+                                align='end'
+                            ),
+                            TextComponent(
+                                text='نقطة',
+                                size='xs',
+                                color=COLORS['text_light'],
+                                align='end'
+                            )
+                        ],
                         flex=0,
-                        align='end'
+                        alignItems='end'
                     )
                 ],
-                paddingAll='8px',
-                backgroundColor='#F9F8FD' if i % 2 == 0 else COLORS['background'],
-                cornerRadius='8px',
-                margin='xs'
+                paddingAll='16px',
+                backgroundColor=bg_color,
+                cornerRadius='12px',
+                margin='sm'
             )
         )
     
@@ -723,35 +779,43 @@ def create_leaderboard_flex(players: List[Dict]):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='قائمة المتصدرين',
-                        weight='bold',
-                        size='xl',
-                        color=COLORS['primary'],
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
                     BoxComponent(
                         layout='vertical',
-                        margin='lg',
+                        contents=[
+                            TextComponent(
+                                text='قائمة المتصدرين',
+                                weight='bold',
+                                size='xxl',
+                                color=COLORS['text_secondary'],
+                                align='center'
+                            )
+                        ],
+                        paddingAll='20px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
+                    ),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
                         spacing='none',
                         contents=player_items if player_items else [
                             TextComponent(
                                 text='لا يوجد لاعبون بعد',
-                                size='sm',
+                                size='md',
                                 color=COLORS['text_light'],
                                 align='center'
                             )
                         ]
                     )
                 ],
-                paddingAll='20px',
+                paddingAll='24px',
                 backgroundColor=COLORS['background']
             )
         )
     )
 
 def create_user_stats_flex(stats: Dict, display_name: str):
+    """إحصائيات المستخدم"""
     return FlexSendMessage(
         alt_text="إحصائياتك",
         contents=BubbleContainer(
@@ -759,17 +823,24 @@ def create_user_stats_flex(stats: Dict, display_name: str):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='إحصائياتك',
-                        weight='bold',
-                        size='xl',
-                        color=COLORS['primary'],
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
                     BoxComponent(
                         layout='vertical',
-                        margin='lg',
+                        contents=[
+                            TextComponent(
+                                text='إحصائياتك',
+                                weight='bold',
+                                size='xl',
+                                color=COLORS['text_secondary'],
+                                align='center'
+                            )
+                        ],
+                        paddingAll='20px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
+                    ),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
                         spacing='md',
                         contents=[
                             create_stat_row('الاسم', display_name),
@@ -779,34 +850,90 @@ def create_user_stats_flex(stats: Dict, display_name: str):
                         ]
                     )
                 ],
-                paddingAll='20px',
+                paddingAll='24px',
                 backgroundColor=COLORS['background']
             )
         )
     )
 
 def create_stat_row(label: str, value: str):
+    """صف إحصائية"""
     return BoxComponent(
         layout='horizontal',
         contents=[
             TextComponent(
                 text=label,
-                size='sm',
+                size='md',
                 color=COLORS['text_light'],
                 flex=1
             ),
             TextComponent(
                 text=value,
-                size='sm',
-                color=COLORS['text_main'],
+                size='lg',
+                color=COLORS['primary'],
                 weight='bold',
                 flex=1,
                 align='end'
             )
-        ]
+        ],
+        paddingAll='16px',
+        backgroundColor=COLORS['card_bg'],
+        cornerRadius='12px'
+    )
+
+def create_answer_flex(answer: str, answer_type: str):
+    """بطاقة الإجابة/التلميح"""
+    color = COLORS['success'] if answer_type == 'الإجابة الصحيحة' else COLORS['secondary']
+    
+    return FlexSendMessage(
+        alt_text=answer_type,
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical',
+                contents=[
+                    BoxComponent(
+                        layout='vertical',
+                        contents=[
+                            TextComponent(
+                                text=answer_type,
+                                weight='bold',
+                                size='xl',
+                                color=color,
+                                align='center'
+                            )
+                        ],
+                        paddingAll='16px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
+    ),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
+                        contents=[
+                            TextComponent(
+                                text=answer,
+                                size='xl',
+                                color=COLORS['text_main'],
+                                wrap=True,
+                                align='center',
+                                lineSpacing='8px',
+                                weight='bold'
+                            )
+                        ],
+                        paddingAll='24px',
+                        backgroundColor=COLORS['card_bg'],
+                        cornerRadius='16px'
+                    )
+                ],
+                paddingAll='24px',
+                backgroundColor=COLORS['background']
+            )
+        )
     )
 
 def create_game_list_flex(games: list):
+    """قائمة الألعاب"""
     game_buttons = []
     for i, game in enumerate(games[:10], 1):
         game_buttons.append(
@@ -828,28 +955,36 @@ def create_game_list_flex(games: list):
             body=BoxComponent(
                 layout='vertical',
                 contents=[
-                    TextComponent(
-                        text='الألعاب المتاحة',
-                        weight='bold',
-                        size='xl',
-                        color=COLORS['primary'],
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
                     BoxComponent(
                         layout='vertical',
-                        margin='lg',
+                        contents=[
+                            TextComponent(
+                                text='الألعاب المتاحة',
+                                weight='bold',
+                                size='xl',
+                                color=COLORS['text_secondary'],
+                                align='center'
+                            )
+                        ],
+                        paddingAll='20px',
+                        backgroundColor=COLORS['glass_bg'],
+                        cornerRadius='16px'
+                    ),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
                         spacing='sm',
                         contents=game_buttons
                     )
                 ],
-                paddingAll='20px',
+                paddingAll='24px',
                 backgroundColor=COLORS['background']
             )
         )
     )
 
 def create_game_question_flex(game_title: str, question: dict, progress: str):
+    """سؤال اللعبة"""
     option_buttons = []
     for key, value in question['options'].items():
         option_buttons.append(
@@ -901,7 +1036,7 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
                             )
                         ],
                         paddingAll='16px',
-                        backgroundColor='#F9F8FD',
+                        backgroundColor=COLORS['glass_bg'],
                         cornerRadius='8px'
                     ),
                     BoxComponent(
@@ -918,6 +1053,7 @@ def create_game_question_flex(game_title: str, question: dict, progress: str):
     )
 
 def create_game_result_flex(result_text: str, stats: str, points: int):
+    """نتيجة اللعبة"""
     return FlexSendMessage(
         alt_text="نتيجة اللعبة",
         contents=BubbleContainer(
@@ -946,7 +1082,7 @@ def create_game_result_flex(result_text: str, stats: str, points: int):
                             )
                         ],
                         paddingAll='16px',
-                        backgroundColor='#F9F8FD',
+                        backgroundColor=COLORS['glass_bg'],
                         cornerRadius='8px'
                     ),
                     BoxComponent(
@@ -994,45 +1130,24 @@ def create_game_result_flex(result_text: str, stats: str, points: int):
         )
     )
 
-def create_answer_flex(answer: str, answer_type: str):
-    return FlexSendMessage(
-        alt_text="الإجابة",
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                contents=[
-                    TextComponent(
-                        text=answer_type,
-                        weight='bold',
-                        size='lg',
-                        color=COLORS['success'],
-                        align='center'
-                    ),
-                    SeparatorComponent(margin='md', color=COLORS['border']),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            TextComponent(
-                                text=answer,
-                                size='md',
-                                color=COLORS['text_main'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='6px'
-                            )
-                        ],
-                        paddingAll='16px',
-                        backgroundColor='#F0F9F4',
-                        cornerRadius='8px'
-                    )
-                ],
-                paddingAll='20px',
-                backgroundColor=COLORS['background']
-            )
-        )
-    )
+# ==================== القوائم ====================
+def create_main_menu() -> QuickReply:
+    return QuickReply(items=[
+        QuickReplyButton(action=MessageAction(label="سؤال", text="سؤال")),
+        QuickReplyButton(action=MessageAction(label="تحدي", text="تحدي")),
+        QuickReplyButton(action=MessageAction(label="اعتراف", text="اعتراف")),
+        QuickReplyButton(action=MessageAction(label="منشن", text="منشن")),
+        QuickReplyButton(action=MessageAction(label="المزيد", text="المزيد")),
+    ])
+
+def create_secondary_menu() -> QuickReply:
+    return QuickReply(items=[
+        QuickReplyButton(action=MessageAction(label="شعر", text="شعر")),
+        QuickReplyButton(action=MessageAction(label="اقتباسات", text="اقتباسات")),
+        QuickReplyButton(action=MessageAction(label="لغز", text="لغز")),
+        QuickReplyButton(action=MessageAction(label="إيموجي", text="إيموجي")),
+        QuickReplyButton(action=MessageAction(label="الرئيسية", text="القائمة")),
+    ])
 
 # ==================== حالات المستخدمين ====================
 user_game_state: Dict[str, dict] = {}
@@ -1072,9 +1187,8 @@ def calculate_result(answers: List[str], game_index: int) -> tuple:
     )
     stats = f"أ: {count['أ']}  •  ب: {count['ب']}  •  ج: {count['ج']}"
     
-    # حساب النقاط
     total_questions = len(answers)
-    points = total_questions * 5  # 5 نقاط لكل سؤال
+    points = total_questions * 5
     
     return result_text, stats, points
 
@@ -1123,7 +1237,6 @@ def handle_game_answer(event, user_id: str, text: str):
         else:
             result_text, stats, points = calculate_result(state["answers"], state["game_index"])
             
-            # حفظ النتيجة في قاعدة البيانات
             display_name = get_user_profile_safe(user_id)
             game_title = game.get('title', 'لعبة شخصية')
             update_user_points(user_id, display_name, points, True, game_title)
@@ -1141,7 +1254,7 @@ def handle_content_command(event, command: str):
         if not riddle:
             safe_reply(
                 event.reply_token,
-                TextSendMessage(text="لا توجد ألغاز متاحة حالياً", quick_reply=create_main_menu())
+                TextSendMessage(text="لا توجدألغاز متاحة حالياً", quick_reply=create_main_menu())
             )
         else:
             user_riddle_state[user_id] = riddle
@@ -1153,7 +1266,7 @@ def handle_content_command(event, command: str):
         if not emoji_puzzle:
             safe_reply(
                 event.reply_token,
-                TextSendMessage(text="لا توجد ألغاز إيموجي متاحة حالياً", quick_reply=create_secondary_menu())
+                TextSendMessage(text="لا توجدألغاز إيموجي متاحة حالياً", quick_reply=create_secondary_menu())
             )
         else:
             user_emoji_state[user_id] = emoji_puzzle
@@ -1271,13 +1384,11 @@ def handle_message(event):
     text_lower = text.lower()
 
     try:
-        # التسجيل التلقائي
         with players_lock:
             if user_id not in registered_players:
                 registered_players.add(user_id)
                 ensure_user_exists(user_id)
         
-        # فحص حد المعدل
         if not check_rate_limit(user_id):
             safe_reply(
                 event.reply_token,
@@ -1285,19 +1396,16 @@ def handle_message(event):
             )
             return
         
-        # رسالة الترحيب
         if text_lower in ["مساعدة", "help", "بداية", "start", "القائمة", "مرحبا"]:
             safe_reply(event.reply_token, create_welcome_flex())
             return
         
-        # قائمة المتصدرين
         if text_lower in ["ترتيب", "المتصدرين", "leaderboard", "top"]:
             players = get_leaderboard(10)
             flex_msg = create_leaderboard_flex(players)
             safe_reply(event.reply_token, flex_msg)
             return
         
-        # إحصائيات المستخدم
         if text_lower in ["احصائياتي", "نقاطي", "stats", "profile"]:
             stats = get_user_stats(user_id)
             if stats:
@@ -1311,7 +1419,6 @@ def handle_message(event):
                 )
             return
         
-        # القائمة الثانوية
         if text_lower in ["المزيد", "more", "ثانوي"]:
             safe_reply(
                 event.reply_token,
@@ -1319,23 +1426,19 @@ def handle_message(event):
             )
             return
         
-        # البحث عن الأوامر
         command = find_command(text)
         if command:
             handle_content_command(event, command)
             return
 
-        # أوامر الإجابة
         if text_lower in ["جاوب", "الجواب", "الاجابة", "اجابة"]:
             handle_answer_command(event, user_id)
             return
 
-        # أوامر التلميح
         if text_lower in ["لمح", "تلميح", "hint"]:
             handle_hint_command(event, user_id)
             return
 
-        # عرض قائمة الألعاب
         if text_lower in ["لعبة", "لعبه", "العاب", "ألعاب", "game"]:
             if content_manager.games_list:
                 flex_msg = create_game_list_flex(content_manager.games_list)
@@ -1347,17 +1450,14 @@ def handle_message(event):
                 )
             return
 
-        # اختيار لعبة برقم
         if text.isdigit():
             handle_game_selection(event, user_id, int(text))
             return
 
-        # الإجابة على أسئلة اللعبة
         if user_id in user_game_state:
             handle_game_answer(event, user_id, text)
             return
 
-        # رسالة افتراضية
         safe_reply(
             event.reply_token,
             TextSendMessage(text="مرحباً! اختر من القائمة أدناه", quick_reply=create_main_menu())
