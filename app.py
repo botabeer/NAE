@@ -12,9 +12,14 @@ if not TOKEN or not SECRET: raise RuntimeError("Set LINE tokens")
 
 line, handler = LineBotApi(TOKEN), WebhookHandler(SECRET)
 
-# ألوان لافندر ناعمة
-C = {'bg':'#FEFCFF','glass':'#F5F0FA','card':'#FAF7FC','pri':'#B794F6','sec':'#D4B5F8','acc':'#9061F9',
-     'txt':'#4A4063','txt2':'#9B8AA8','bdr':'#E8DFF0','ok':'#9061F9'}
+# 3D Glass Concave Colors
+C = {
+    'pri': '#8B5CF6', 'sec': '#A78BFA', 'acc': '#6D28D9',
+    'bg': '#FFFFFF', 'glass': 'rgba(139, 92, 246, 0.05)', 'glass_bdr': 'rgba(139, 92, 246, 0.2)',
+    'txt': '#1F2937', 'txt2': '#6B7280', 'bdr': '#EDE9FE',
+    'ok': '#7DD3C0', 'shadow': 'rgba(139, 92, 246, 0.1)',
+    'shine': 'rgba(255, 255, 255, 0.5)'
+}
 
 class CM:
     def __init__(s):
@@ -77,15 +82,47 @@ def calc_res(ans, gi):
 
 def menu():
     items = ["سؤال","تحدي","اعتراف","موقف","منشن","اقتباسات","لغز","تحليل"]
-    return QuickReply(items=[QuickReplyButton(action=MessageAction(label=f"✦ {l}", text=l)) for l in items])
+    return QuickReply(items=[QuickReplyButton(action=MessageAction(label=f"◆ {l}", text=l)) for l in items])
 
 def hdr(t, i=""):
     return BoxComponent(
-        layout='vertical', backgroundColor=C['glass'], cornerRadius='18px', paddingAll='16px',
+        layout='vertical',
+        paddingAll='20px',
+        backgroundColor=C['bg'],
+        cornerRadius='24px',
         contents=[
-            TextComponent(text=f"{i} {t}" if i else t, weight='bold', size='xl', color=C['txt'], align='center'),
-            BoxComponent(layout='vertical', height='3px', backgroundColor=C['pri'], cornerRadius='2px', margin='md')
+            TextComponent(
+                text=f"{i} {t}" if i else t,
+                weight='bold',
+                size='xxl',
+                color=C['pri'],
+                align='center'
+            ),
+            BoxComponent(
+                layout='vertical',
+                height='4px',
+                backgroundColor=C['pri'],
+                cornerRadius='2px',
+                margin='md',
+                width='80px',
+                offsetStart='50%',
+                offsetTop='0px'
+            )
         ]
+    )
+
+def glass_card(content, **kw):
+    """إنشاء كارت زجاجي ثلاثي الأبعاد مقعر"""
+    return BoxComponent(
+        layout='vertical',
+        paddingAll='24px',
+        backgroundColor=C['glass'],
+        cornerRadius='20px',
+        margin='lg',
+        borderWidth='1px',
+        borderColor=C['glass_bdr'],
+        contents=content if isinstance(content, list) else [content],
+        **kw
     )
 
 def help_flex():
@@ -95,13 +132,25 @@ def help_flex():
 
     items = [
         BoxComponent(
-            layout='horizontal', paddingAll='12px', backgroundColor=C['card'], cornerRadius='14px', spacing='md', margin='sm',
+            layout='horizontal',
+            paddingAll='16px',
+            backgroundColor=C['bg'],
+            cornerRadius='18px',
+            spacing='md',
+            margin='sm',
+            borderWidth='1px',
+            borderColor=C['bdr'],
             contents=[
-                TextComponent(text=ic, size='xl', color=C['acc'], flex=0),
-                BoxComponent(layout='vertical', flex=1, spacing='xs', contents=[
-                    TextComponent(text=i, size='md', color=C['txt'], weight='bold'),
-                    TextComponent(text=d, size='xs', color=C['txt2'], wrap=True)
-                ])
+                TextComponent(text=ic, size='xxl', color=C['pri'], flex=0),
+                BoxComponent(
+                    layout='vertical',
+                    flex=1,
+                    spacing='xs',
+                    contents=[
+                        TextComponent(text=i, size='md', color=C['txt'], weight='bold'),
+                        TextComponent(text=d, size='xs', color=C['txt2'], wrap=True)
+                    ]
+                )
             ]
         )
         for i, d, ic in sec
@@ -112,11 +161,13 @@ def help_flex():
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
-                layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
-                    hdr("بوت عناد المالكي", "🤖"),
-                    TextComponent(text="اختر من الأزرار أدناه", size='xs', color=C['txt2'], align='center', margin='md'),
-                    SeparatorComponent(margin='lg', color=C['bdr']),
+                    hdr("بوت عناد المالكي", ""),
+                    TextComponent(text="اختر من الأزرار أدناه", size='sm', color=C['txt2'], align='center', margin='md'),
+                    SeparatorComponent(margin='xl', color=C['bdr']),
                     BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=items)
                 ]
             )
@@ -129,19 +180,38 @@ def puzzle_flex(p):
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
-                layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
                     hdr("لغز", "🧩"),
-                    BoxComponent(
-                        layout='vertical', margin='xl', paddingAll='24px', backgroundColor=C['card'], 
-                        cornerRadius='18px',
-                        contents=[TextComponent(text=p['question'], size='lg', color=C['txt'], wrap=True, align='center', weight='bold')]
+                    glass_card(
+                        TextComponent(
+                            text=p['question'],
+                            size='xl',
+                            color=C['txt'],
+                            wrap=True,
+                            align='center',
+                            weight='bold'
+                        )
                     ),
                     BoxComponent(
-                        layout='vertical', margin='xl', spacing='md',
+                        layout='vertical',
+                        margin='xl',
+                        spacing='md',
                         contents=[
-                            ButtonComponent(action=MessageAction(label='💡 تلميح',text='لمح'), style='secondary', color=C['sec'], height='md'),
-                            ButtonComponent(action=MessageAction(label='✓ الجواب',text='جاوب'), style='primary', color=C['pri'], height='md')
+                            ButtonComponent(
+                                action=MessageAction(label='💡 تلميح', text='لمح'),
+                                style='secondary',
+                                color=C['sec'],
+                                height='md'
+                            ),
+                            ButtonComponent(
+                                action=MessageAction(label='✓ الجواب', text='جاوب'),
+                                style='primary',
+                                color=C['pri'],
+                                height='md'
+                            )
                         ]
                     )
                 ]
@@ -160,15 +230,36 @@ def ans_flex(a, t):
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
-                layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
                     BoxComponent(
-                        layout='vertical', paddingAll='16px', backgroundColor=C['glass'], cornerRadius='18px',
-                        contents=[TextComponent(text=f"{ic} {title}", weight='bold', size='xl', color=cl, align='center')]
+                        layout='vertical',
+                        paddingAll='18px',
+                        backgroundColor=C['glass'],
+                        cornerRadius='20px',
+                        borderWidth='1px',
+                        borderColor=C['glass_bdr'],
+                        contents=[
+                            TextComponent(
+                                text=f"{ic} {title}",
+                                weight='bold',
+                                size='xxl',
+                                color=cl,
+                                align='center'
+                            )
+                        ]
                     ),
-                    BoxComponent(
-                        layout='vertical', margin='xl', paddingAll='24px', backgroundColor=C['card'], cornerRadius='18px',
-                        contents=[TextComponent(text=a, size='lg', color=C['txt'], wrap=True, align='center', weight='bold')]
+                    glass_card(
+                        TextComponent(
+                            text=a,
+                            size='xl',
+                            color=C['txt'],
+                            wrap=True,
+                            align='center',
+                            weight='bold'
+                        )
                     )
                 ]
             )
@@ -176,52 +267,101 @@ def ans_flex(a, t):
     )
 
 def games_flex(games):
-    items = [
-        BoxComponent(
-            layout='horizontal', paddingAll='14px', backgroundColor=C['card'], cornerRadius='14px', 
-            spacing='md', margin='sm',
-            contents=[
-                TextComponent(text=f"{i+1}", size='xl', color=C['pri'], flex=0, weight='bold'),
-                TextComponent(text=g['title'], size='md', color=C['txt'], flex=1, weight='bold'),
-                ButtonComponent(
-                    action=MessageAction(label='ابدأ', text=f"لعبة {i+1}"),
-                    style='primary', color=C['acc'], height='sm', flex=0
-                )
-            ]
-        )
-        for i, g in enumerate(games)
-    ]
+    """قائمة الألعاب بالطريقة القديمة - carousel"""
+    bubbles = []
     
-    return FlexSendMessage(
-        alt_text="تحليل الشخصية",
-        contents=BubbleContainer(
+    for i, g in enumerate(games):
+        bubble = BubbleContainer(
             direction='rtl',
+            size='micro',
             body=BoxComponent(
-                layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                layout='vertical',
+                paddingAll='20px',
+                backgroundColor=C['bg'],
+                spacing='md',
                 contents=[
-                    hdr("تحليل الشخصية", "🔮"),
-                    TextComponent(text="اختر لعبة لتحليل شخصيتك", size='xs', color=C['txt2'], align='center', margin='md'),
-                    SeparatorComponent(margin='lg', color=C['bdr']),
-                    BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=items)
+                    BoxComponent(
+                        layout='vertical',
+                        paddingAll='16px',
+                        backgroundColor=C['glass'],
+                        cornerRadius='18px',
+                        borderWidth='1px',
+                        borderColor=C['glass_bdr'],
+                        contents=[
+                            TextComponent(
+                                text=f"🔮 لعبة {i+1}",
+                                size='xs',
+                                color=C['pri'],
+                                weight='bold',
+                                align='center'
+                            )
+                        ]
+                    ),
+                    TextComponent(
+                        text=g['title'],
+                        size='lg',
+                        color=C['txt'],
+                        weight='bold',
+                        align='center',
+                        wrap=True,
+                        margin='lg'
+                    ),
+                    TextComponent(
+                        text=g.get('description', 'اختبر شخصيتك'),
+                        size='xs',
+                        color=C['txt2'],
+                        align='center',
+                        wrap=True,
+                        margin='md'
+                    )
+                ]
+            ),
+            footer=BoxComponent(
+                layout='vertical',
+                spacing='sm',
+                paddingAll='16px',
+                backgroundColor=C['bg'],
+                contents=[
+                    ButtonComponent(
+                        action=MessageAction(label='✦ ابدأ الآن', text=f"لعبة {i+1}"),
+                        style='primary',
+                        color=C['pri'],
+                        height='md'
+                    )
                 ]
             )
         )
+        bubbles.append(bubble)
+    
+    return FlexSendMessage(
+        alt_text="تحليل الشخصية",
+        contents=CarouselContainer(contents=bubbles)
     )
 
 def game_q_flex(game, qi, total):
     q = game['questions'][qi]
+    
     opts = [
         ButtonComponent(
             action=MessageAction(label=f"أ. {q['options']['أ']}", text=f"اختار أ"),
-            style='secondary', color=C['card'], height='md', margin='sm'
+            style='secondary',
+            color=C['bg'],
+            height='md',
+            margin='sm'
         ),
         ButtonComponent(
             action=MessageAction(label=f"ب. {q['options']['ب']}", text=f"اختار ب"),
-            style='secondary', color=C['card'], height='md', margin='sm'
+            style='secondary',
+            color=C['bg'],
+            height='md',
+            margin='sm'
         ),
         ButtonComponent(
             action=MessageAction(label=f"ج. {q['options']['ج']}", text=f"اختار ج"),
-            style='secondary', color=C['card'], height='md', margin='sm'
+            style='secondary',
+            color=C['bg'],
+            height='md',
+            margin='sm'
         )
     ]
     
@@ -230,18 +370,42 @@ def game_q_flex(game, qi, total):
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
-                layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
                     BoxComponent(
-                        layout='horizontal', paddingAll='12px', backgroundColor=C['glass'], cornerRadius='12px',
+                        layout='horizontal',
+                        paddingAll='14px',
+                        backgroundColor=C['glass'],
+                        cornerRadius='16px',
+                        borderWidth='1px',
+                        borderColor=C['glass_bdr'],
                         contents=[
-                            TextComponent(text=f"سؤال {qi+1} من {total}", weight='bold', size='md', color=C['txt'], flex=1),
-                            TextComponent(text=game['title'], size='sm', color=C['txt2'], flex=1, align='end')
+                            TextComponent(
+                                text=f"سؤال {qi+1} من {total}",
+                                weight='bold',
+                                size='md',
+                                color=C['pri'],
+                                flex=1
+                            ),
+                            TextComponent(
+                                text=game['title'],
+                                size='sm',
+                                color=C['txt2'],
+                                flex=1,
+                                align='end'
+                            )
                         ]
                     ),
-                    BoxComponent(
-                        layout='vertical', margin='xl', paddingAll='20px', backgroundColor=C['card'], cornerRadius='16px',
-                        contents=[TextComponent(text=q['question'], size='lg', color=C['txt'], wrap=True, weight='bold')]
+                    glass_card(
+                        TextComponent(
+                            text=q['question'],
+                            size='xl',
+                            color=C['txt'],
+                            wrap=True,
+                            weight='bold'
+                        )
                     ),
                     BoxComponent(layout='vertical', margin='xl', spacing='sm', contents=opts)
                 ]
@@ -255,14 +419,38 @@ def result_flex(result, title):
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
-                layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
                     hdr("نتيجة التحليل", "✨"),
-                    TextComponent(text=title, size='md', color=C['pri'], align='center', margin='md', weight='bold'),
-                    SeparatorComponent(margin='lg', color=C['bdr']),
                     BoxComponent(
-                        layout='vertical', margin='xl', paddingAll='24px', backgroundColor=C['card'], cornerRadius='18px',
-                        contents=[TextComponent(text=result, size='md', color=C['txt'], wrap=True, lineHeight='1.8')]
+                        layout='vertical',
+                        paddingAll='14px',
+                        backgroundColor=C['glass'],
+                        cornerRadius='16px',
+                        borderWidth='1px',
+                        borderColor=C['glass_bdr'],
+                        margin='lg',
+                        contents=[
+                            TextComponent(
+                                text=title,
+                                size='lg',
+                                color=C['pri'],
+                                align='center',
+                                weight='bold'
+                            )
+                        ]
+                    ),
+                    SeparatorComponent(margin='lg', color=C['bdr']),
+                    glass_card(
+                        TextComponent(
+                            text=result,
+                            size='md',
+                            color=C['txt'],
+                            wrap=True,
+                            lineHeight='1.8'
+                        )
                     )
                 ]
             )
@@ -276,7 +464,7 @@ def reply(tk, msg):
             line.reply_message(tk, msg)
         else:
             if isinstance(msg, FlexSendMessage):
-                line.reply_message(tk, [msg, TextSendMessage(text="✦", quick_reply=menu())])
+                line.reply_message(tk, [msg, TextSendMessage(text="◆", quick_reply=menu())])
             else:
                 if isinstance(msg, TextSendMessage): msg.quick_reply = menu()
                 line.reply_message(tk, msg)
@@ -303,7 +491,6 @@ def handle_msg(ev):
     tl = txt.lower()
     
     try:
-        # مساعدة
         if tl == "مساعدة":
             reply(ev.reply_token, help_flex())
             return
@@ -324,10 +511,6 @@ def handle_msg(ev):
                         reply(ev.reply_token, result_flex(result, game['title']))
                         del gm_st[uid]
                 return
-            elif tl == "إلغاء":
-                del gm_st[uid]
-                reply(ev.reply_token, TextSendMessage(text="تم إلغاء اللعبة"))
-                return
 
         # لعبة جديدة
         if tl.startswith("لعبة "):
@@ -339,7 +522,6 @@ def handle_msg(ev):
                 return
             except: pass
 
-        # الأوامر العادية
         cmd = find_cmd(txt)
         
         if not cmd:
@@ -363,7 +545,6 @@ def handle_msg(ev):
             
             return
 
-        # معالجة الأوامر
         if cmd == "لغز":
             r = cm.get_r()
             if r:
@@ -397,7 +578,7 @@ def handle_msg(ev):
             c = cm.get(cmd)
             if c:
                 icons = {"سؤال":"❓","تحدي":"🎯","اعتراف":"💭"}
-                reply(ev.reply_token, TextSendMessage(text=f"{icons.get(cmd,'▫️')} {cmd}\n\n{c}"))
+                reply(ev.reply_token, TextSendMessage(text=f"{icons.get(cmd,'◆')} {cmd}\n\n{c}"))
             else:
                 reply(ev.reply_token, TextSendMessage(text="لا توجد بيانات"))
     
