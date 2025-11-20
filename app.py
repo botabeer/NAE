@@ -64,8 +64,16 @@ class CM:
 cm = CM(); cm.init()
 
 def menu():
-    items = [("سؤال","سؤال"),("تحدي","تحدي"),("اعتراف","اعتراف"),("موقف","موقف"),("منشن","منشن"),("اقتباسات","اقتباسات"),("لغز","لغز"),("تحليل","تحليل")]
-    return QuickReply(items=[QuickReplyButton(action=MessageAction(label=l,text=t)) for l,t in items])
+    # زر ثابت ▫️ قبل باقي الأزرار
+    fixed_btn = QuickReplyButton(action=MessageAction(label="▫️", text="▫️"))
+    
+    # باقي الأزرار بدون إيموجي
+    items = [("سؤال","سؤال"),("تحدي","تحدي"),("اعتراف","اعتراف"),
+             ("موقف","موقف"),("منشن","منشن"),("اقتباسات","اقتباسات"),
+             ("لغز","لغز"),("تحليل","تحليل")]
+    
+    buttons = [fixed_btn] + [QuickReplyButton(action=MessageAction(label=l, text=t)) for l,t in items]
+    return QuickReply(items=buttons)
 
 def hdr(t, i=""):
     return BoxComponent(layout='vertical', backgroundColor=C['glass'], cornerRadius='16px', paddingAll='16px',
@@ -183,6 +191,10 @@ def handle_msg(ev):
     tl = txt.lower()
     try:
         if tl=="مساعدة": reply(ev.reply_token, help_flex()); return
+        
+        if tl=="▫️":
+            reply(ev.reply_token, TextSendMessage(text="لقد ضغطت الزر الثابت ▫️"))
+            return
         
         cmd = find_cmd(txt)
         if cmd:
