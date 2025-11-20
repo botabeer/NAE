@@ -12,25 +12,24 @@ if not TOKEN or not SECRET: raise RuntimeError("Missing LINE credentials")
 
 bot, handler = LineBotApi(TOKEN), WebhookHandler(SECRET)
 
-# Modern Gradient Design
+# Lavender Glassmorphism Design
 C = {
-    'bg': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    'card': '#FFFFFF', 'overlay': 'rgba(102, 126, 234, 0.05)',
-    'primary': '#667eea', 'secondary': '#764ba2', 'accent': '#f093fb',
-    'text': '#2d3748', 'text2': '#718096', 'border': '#e2e8f0',
-    'success': '#48bb78', 'warning': '#ed8936'
+    'bg': '#F8F5FF', 'glass': '#FEFCFF', 'card': '#FFFFFF',
+    'primary': '#B794F6', 'secondary': '#D4B5F8', 'accent': '#9061F9',
+    'text': '#4A4063', 'text2': '#9B8AA8', 'border': '#E8DFF0',
+    'overlay': '#F5F0FA', 'success': '#9061F9'
 }
 
 class ContentManager:
     def __init__(self):
         self.data, self.used = {}, {}
     
-    def _load(self, f, is_json=False):
-        if not os.path.exists(f): return [] if is_json or 's.json' in f else {}
+    def _load(self, f, js=False):
+        if not os.path.exists(f): return [] if js or 's.json' in f else {}
         try:
-            if is_json: return json.load(open(f, 'r', encoding='utf-8'))
+            if js: return json.load(open(f, 'r', encoding='utf-8'))
             return [l.strip() for l in open(f, 'r', encoding='utf-8') if l.strip()]
-        except: return [] if is_json or 's.json' in f else {}
+        except: return [] if js or 's.json' in f else {}
     
     def init(self):
         self.data = {
@@ -61,7 +60,7 @@ state = {}
 CMDS = {
     'q': ['سؤال','سوال'], 'ch': ['تحدي'], 'cf': ['اعتراف'],
     'm': ['منشن'], 's': ['موقف'], 'r': ['لغز'],
-    'qt': ['اقتباسات','اقتباس','حكمة'], 'a': ['تحليل','شخصية']
+    'qt': ['اقتباسات','اقتباس','حكمة'], 'a': ['تحليل','شخصية','تحليل شخصية']
 }
 
 def parse(t):
@@ -74,37 +73,28 @@ def qr():
     items = ['سؤال','تحدي','اعتراف','موقف','منشن','اقتباسات','لغز','تحليل']
     return QuickReply(items=[QuickReplyButton(action=MessageAction(label=f"✦ {i}", text=i)) for i in items])
 
-def box(layout='vertical', **kw):
-    return BoxComponent(layout=layout, **kw)
-
-def txt(text, **kw):
-    return TextComponent(text=text, **kw)
-
-def btn(label, text, **kw):
-    return ButtonComponent(action=MessageAction(label=label, text=text), **kw)
-
 def hdr(title, icon=''):
-    return box(
-        paddingAll='20px', backgroundColor=C['card'], cornerRadius='20px',
+    return BoxComponent(
+        layout='vertical',
+        backgroundColor=C['overlay'],
+        cornerRadius='20px',
+        paddingAll='18px',
         contents=[
-            box(
-                layout='horizontal', spacing='sm', contents=[
-                    txt(icon, size='xxl', flex=0) if icon else None,
-                    txt(title, weight='bold', size='xxl', color=C['text'], flex=1, align='center')
-                ]
+            TextComponent(
+                text=f"{icon} {title}" if icon else title,
+                weight='bold',
+                size='xxl',
+                color=C['text'],
+                align='center'
             ),
-            box(
-                height='4px', backgroundColor=C['primary'], cornerRadius='2px',
-                margin='md', width='60px', offsetStart='50%', offsetTop='0px'
+            BoxComponent(
+                layout='vertical',
+                height='3px',
+                backgroundColor=C['primary'],
+                cornerRadius='2px',
+                margin='md'
             )
         ]
-    )
-
-def card(content, **kw):
-    return box(
-        paddingAll='24px', backgroundColor=C['card'], cornerRadius='20px',
-        margin='lg', contents=content if isinstance(content, list) else [content],
-        **kw
     )
 
 def help_msg():
@@ -115,35 +105,50 @@ def help_msg():
         ('لغز','ألغاز وتلميحات','🧩'), ('تحليل','تحليل الشخصية','🔮')
     ]
     
-    items = [
-        box(
-            layout='horizontal', paddingAll='16px', backgroundColor=C['overlay'],
-            cornerRadius='16px', spacing='md', margin='sm',
-            contents=[
-                txt(ic, size='xl', flex=0, color=C['primary']),
-                box(
-                    layout='vertical', flex=1, spacing='xs',
-                    contents=[
-                        txt(t, size='md', weight='bold', color=C['text']),
-                        txt(d, size='xs', color=C['text2'], wrap=True)
-                    ]
-                )
-            ]
+    items = []
+    for t, d, ic in sections:
+        items.append(
+            BoxComponent(
+                layout='horizontal',
+                paddingAll='14px',
+                backgroundColor=C['card'],
+                cornerRadius='16px',
+                spacing='md',
+                margin='sm',
+                contents=[
+                    TextComponent(text=ic, size='xl', flex=0, color=C['primary']),
+                    BoxComponent(
+                        layout='vertical',
+                        flex=1,
+                        spacing='xs',
+                        contents=[
+                            TextComponent(text=t, size='md', weight='bold', color=C['text']),
+                            TextComponent(text=d, size='xs', color=C['text2'], wrap=True)
+                        ]
+                    )
+                ]
+            )
         )
-        for t, d, ic in sections
-    ]
     
     return FlexSendMessage(
         alt_text="القائمة",
         contents=BubbleContainer(
             direction='rtl',
-            body=box(
-                backgroundColor=C['bg'], paddingAll='24px',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
                     hdr('بوت عناد المالكي', '🤖'),
-                    txt('اختر من القائمة أدناه', size='xs', color=C['text2'], align='center', margin='md'),
+                    TextComponent(
+                        text='اختر من القائمة أدناه',
+                        size='xs',
+                        color=C['text2'],
+                        align='center',
+                        margin='md'
+                    ),
                     SeparatorComponent(margin='lg', color=C['border']),
-                    box(layout='vertical', margin='lg', spacing='sm', contents=items)
+                    BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=items)
                 ]
             )
         )
@@ -154,16 +159,46 @@ def riddle_msg(r):
         alt_text="لغز",
         contents=BubbleContainer(
             direction='rtl',
-            body=box(
-                backgroundColor=C['bg'], paddingAll='24px',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
                     hdr('لغز', '🧩'),
-                    card(txt(r['question'], size='lg', color=C['text'], wrap=True, align='center', weight='bold')),
-                    box(
-                        layout='vertical', margin='xl', spacing='md',
+                    BoxComponent(
+                        layout='vertical',
+                        paddingAll='24px',
+                        backgroundColor=C['card'],
+                        cornerRadius='20px',
+                        margin='xl',
                         contents=[
-                            btn('💡 تلميح', 'لمح', style='secondary', color=C['secondary'], height='md'),
-                            btn('✓ الجواب', 'جاوب', style='primary', color=C['primary'], height='md')
+                            TextComponent(
+                                text=r['question'],
+                                size='lg',
+                                color=C['text'],
+                                wrap=True,
+                                align='center',
+                                weight='bold'
+                            )
+                        ]
+                    ),
+                    BoxComponent(
+                        layout='vertical',
+                        margin='xl',
+                        spacing='md',
+                        contents=[
+                            ButtonComponent(
+                                action=MessageAction(label='💡 تلميح', text='لمح'),
+                                style='secondary',
+                                color=C['secondary'],
+                                height='md'
+                            ),
+                            ButtonComponent(
+                                action=MessageAction(label='✓ الجواب', text='جاوب'),
+                                style='primary',
+                                color=C['primary'],
+                                height='md'
+                            )
                         ]
                     )
                 ]
@@ -173,17 +208,49 @@ def riddle_msg(r):
 
 def ans_msg(answer, t):
     is_sol = 'جاوب' in t
+    ic = '✓' if is_sol else '💡'
+    title = 'الجواب' if is_sol else 'تلميح'
+    
     return FlexSendMessage(
-        alt_text=t,
+        alt_text=title,
         contents=BubbleContainer(
             direction='rtl',
-            body=box(
-                backgroundColor=C['bg'], paddingAll='24px',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
                 contents=[
-                    hdr('الجواب' if is_sol else 'تلميح', '✓' if is_sol else '💡'),
-                    card(
-                        txt(answer, size='lg', color=C['text'], wrap=True, align='center', weight='bold'),
-                        backgroundColor=C['success'] + '10' if is_sol else C['card']
+                    BoxComponent(
+                        layout='vertical',
+                        paddingAll='16px',
+                        backgroundColor=C['overlay'],
+                        cornerRadius='18px',
+                        contents=[
+                            TextComponent(
+                                text=f"{ic} {title}",
+                                weight='bold',
+                                size='xl',
+                                color=C['success'] if is_sol else C['secondary'],
+                                align='center'
+                            )
+                        ]
+                    ),
+                    BoxComponent(
+                        layout='vertical',
+                        paddingAll='24px',
+                        backgroundColor=C['card'],
+                        cornerRadius='20px',
+                        margin='xl',
+                        contents=[
+                            TextComponent(
+                                text=answer,
+                                size='lg',
+                                color=C['text'],
+                                wrap=True,
+                                align='center',
+                                weight='bold'
+                            )
+                        ]
                     )
                 ]
             )
@@ -192,15 +259,17 @@ def ans_msg(answer, t):
 
 def reply(tk, msg):
     try:
-        msgs = [msg]
-        if not isinstance(msg, list):
-            if isinstance(msg, FlexSendMessage):
-                msgs.append(TextSendMessage(text='✦', quick_reply=qr()))
-            elif isinstance(msg, TextSendMessage):
-                msg.quick_reply = qr()
-                msgs = [msg]
+        msgs = []
+        if isinstance(msg, FlexSendMessage):
+            msgs = [msg, TextSendMessage(text='✦', quick_reply=qr())]
+        elif isinstance(msg, TextSendMessage):
+            msg.quick_reply = qr()
+            msgs = [msg]
+        else:
+            msgs = [msg]
         bot.reply_message(tk, msgs)
-    except Exception as e: logging.error(f"Reply error: {e}")
+    except Exception as e: 
+        logging.error(f"Reply error: {e}")
 
 @app.route("/")
 def home(): return "OK", 200
@@ -219,56 +288,77 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessage)
 def msg_handler(ev):
-    uid, t = ev.source.user_id, ev.message.text.strip()
+    uid = ev.source.user_id
+    t = ev.message.text.strip()
     tl = t.lower()
     
     try:
-        if tl == 'مساعدة': reply(ev.reply_token, help_msg()); return
+        # مساعدة
+        if tl == 'مساعدة':
+            reply(ev.reply_token, help_msg())
+            return
         
+        # محاولة تحليل الأمر
         cmd = parse(t)
         
+        # إذا لم يكن أمر معروف
         if not cmd:
+            # لمح
             if tl == 'لمح':
                 if uid in state:
-                    reply(ev.reply_token, ans_msg(state[uid].get('hint','لا يوجد'), 'لمح'))
+                    hint = state[uid].get('hint', 'لا يوجد تلميح')
+                    reply(ev.reply_token, ans_msg(hint, 'لمح'))
                 return
+            
+            # جاوب
             if tl == 'جاوب':
                 if uid in state:
                     r = state.pop(uid)
-                    reply(ev.reply_token, ans_msg(r.get('answer','غير متوفر'), 'جاوب'))
+                    answer = r.get('answer', 'غير متوفر')
+                    reply(ev.reply_token, ans_msg(answer, 'جاوب'))
                 return
+            
+            # تجاهل أي رسالة أخرى
             return
         
+        # معالجة الأوامر
+        # لغز
         if cmd == 'r':
             r = cm.get('r')
             if r:
                 state[uid] = r
                 reply(ev.reply_token, riddle_msg(r))
             else:
-                reply(ev.reply_token, TextSendMessage(text="❌ لا توجد ألغاز"))
+                reply(ev.reply_token, TextSendMessage(text="❌ لا توجد ألغاز متاحة"))
+            return
         
-        elif cmd == 'qt':
+        # اقتباس
+        if cmd == 'qt':
             q = cm.get('qt')
             if q:
                 msg = f"📖 اقتباس\n\n\"{q.get('text','')}\"\n\n— {q.get('author','مجهول')}"
                 reply(ev.reply_token, TextSendMessage(text=msg))
             else:
-                reply(ev.reply_token, TextSendMessage(text="❌ لا توجد اقتباسات"))
+                reply(ev.reply_token, TextSendMessage(text="❌ لا توجد اقتباسات متاحة"))
+            return
         
-        elif cmd == 'a':
-            reply(ev.reply_token, TextSendMessage(text="🔜 قريباً..."))
+        # تحليل
+        if cmd == 'a':
+            reply(ev.reply_token, TextSendMessage(text="🔮 تحليل الشخصية قريباً..."))
+            return
         
+        # باقي الأوامر
+        c = cm.get(cmd)
+        if c:
+            icons = {'q':'❓','ch':'🎯','cf':'💭','m':'👥','s':'🤔'}
+            names = {'q':'سؤال','ch':'تحدي','cf':'اعتراف','m':'منشن','s':'موقف'}
+            msg = f"{icons.get(cmd,'▫️')} {names.get(cmd,'')}\n\n{c}"
+            reply(ev.reply_token, TextSendMessage(text=msg))
         else:
-            c = cm.get(cmd)
-            if c:
-                icons = {'q':'❓','ch':'🎯','cf':'💭','m':'👥','s':'🤔'}
-                names = {'q':'سؤال','ch':'تحدي','cf':'اعتراف','m':'منشن','s':'موقف'}
-                msg = f"{icons.get(cmd,'▫️')} {names.get(cmd,'')}\n\n{c}"
-                reply(ev.reply_token, TextSendMessage(text=msg))
-            else:
-                reply(ev.reply_token, TextSendMessage(text="❌ لا توجد بيانات"))
+            reply(ev.reply_token, TextSendMessage(text="❌ لا توجد بيانات متاحة"))
     
-    except Exception as e: logging.error(f"Error: {e}")
+    except Exception as e: 
+        logging.error(f"Error: {e}")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False)
