@@ -386,7 +386,7 @@ def create_welcome_flex():
                                 align='center'
                             ),
                             TextComponent(
-                                text='بوت التفاعل الذكي',
+                                text='بوت عناد المالكي',
                                 size='sm',
                                 color=COLORS['text_light'],
                                 align='center',
