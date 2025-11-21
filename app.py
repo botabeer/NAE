@@ -6,26 +6,15 @@ from linebot.models import *
 
 logging.basicConfig(level=logging.INFO)
 app = Flask(__name__)
+
 TOKEN, SECRET = os.getenv("LINE_CHANNEL_ACCESS_TOKEN"), os.getenv("LINE_CHANNEL_SECRET")
 if not TOKEN or not SECRET:
     raise RuntimeError("Set LINE tokens")
 line, handler = LineBotApi(TOKEN), WebhookHandler(SECRET)
 
-# ألوان داكنة موحدة مع نصوص سوداء
-C = {
-    'bg': '#0a0a0c',
-    'card': '#13131a',
-    'card_inner': '#1a1a22',
-    'primary': '#9C6BFF',
-    'primary_light': '#C7A3FF',
-    'accent': '#A67CFF',
-    'border': '#B58CFF',
-    'text': '#000000',           # كل النصوص الأساسية سوداء
-    'text_dim': '#333333',       # نص أقل بروز
-    'text_muted': '#555555',     # نص خافت
-    'btn_secondary': '#1E1E27',
-    'btn_secondary_text': '#000000'  # نص الأزرار الثانوية أسود
-}
+# ألوان لافندر ناعمة
+C = {'bg':'#FEFCFF','glass':'#F5F0FA','card':'#FAF7FC','pri':'#B794F6','sec':'#D4B5F8','acc':'#9061F9',
+     'txt':'#4A4063','txt2':'#9B8AA8','bdr':'#E8DFF0','ok':'#9061F9'}
 
 class CM:
     def __init__(s):
@@ -49,16 +38,9 @@ class CM:
         except: return [] if 's.json' in f else {}
 
     def init(s):
-        s.files = {
-            "سؤال": s.ld_l("questions.txt"), 
-            "تحدي": s.ld_l("challenges.txt"), 
-            "اعتراف": s.ld_l("confessions.txt")
-        }
-        s.mention = s.ld_l("more_questions.txt")
-        s.situations = s.ld_l("situations.txt")
-        s.riddles = s.ld_j("riddles.json")
-        s.quotes = s.ld_j("quotes.json")
-        s.results = s.ld_j("detailed_results.json")
+        s.files = {"سؤال": s.ld_l("questions.txt"), "تحدي": s.ld_l("challenges.txt"), "اعتراف": s.ld_l("confessions.txt")}
+        s.mention, s.situations, s.riddles = s.ld_l("more_questions.txt"), s.ld_l("situations.txt"), s.ld_j("riddles.json")
+        s.quotes, s.results = s.ld_j("quotes.json"), s.ld_j("detailed_results.json")
         d = s.ld_j("personality_games.json")
         s.games = [d[k] for k in sorted(d.keys())] if isinstance(d, dict) else []
         s.used = {k: [] for k in list(s.files.keys()) + ["منشن", "لغز", "اقتباس", "موقف"]}
@@ -81,260 +63,157 @@ class CM:
     def get_r(s): return s.riddles[s.rnd("لغز", len(s.riddles))] if s.riddles else None
     def get_q(s): return s.quotes[s.rnd("اقتباس", len(s.quotes))] if s.quotes else None
 
-cm = CM()
-cm.init()
+cm = CM(); cm.init()
 
+# ----------------- Quick Reply -----------------
 def menu():
+    items = ["تحليل","لغز","سؤال","اعتراف","تحدي","منشن","اقتباس"]
+    buttons = [QuickReplyButton(action=MessageAction(label=f"▫️{l}", text=l)) for l in items]
+    return QuickReply(items=buttons)
+
+# ----------------- Flex Components -----------------
+def hdr(t, i=""):
+    return BoxComponent(layout='vertical', backgroundColor=C['glass'], cornerRadius='16px', paddingAll='16px',
+                        contents=[TextComponent(text=f"{i} {t}" if i else t, weight='bold', size='xl', color=C['txt'], align='center')])
+
+def help_flex():
+    sec = [("تحليل","تحليل الشخصية"),("لغز","ألغاز وتلميحات"),("سؤال","أسئلة متنوعة"),("اعتراف","اعترافات جريئة"),
+           ("تحدي","تحديات ممتعة"),("منشن","أسئلة منشن"),("اقتباس","حكم واقتباسات")]
+
     items = [
-        ("سؤال 💭","سؤال"),
-        ("منشن 📱","منشن"),
-        ("اعتراف 💬","اعتراف"),
-        ("تحدي 🎯","تحدي"),
-        ("موقف 🤔","موقف"),
-        ("اقتباس 📖","اقتباس"),
-        ("🧩 لغز","لغز"),
-        ("🧠 تحليل","تحليل")
+        BoxComponent(
+            layout='horizontal', paddingAll='10px', backgroundColor=C['card'], cornerRadius='10px', spacing='md',
+            contents=[
+                TextComponent(text=f"▫️{i}", size='sm', color=C['acc'], flex=0),
+                TextComponent(text=d, size='sm', color=C['txt2'], flex=1)
+            ]
+        )
+        for i, d in sec
     ]
-    return QuickReply(items=[QuickReplyButton(action=MessageAction(label=l,text=t)) for l,t in items])
 
-# باقي الدوال FlexMessage كلها بنفس الطريقة، مجرد النصوص الآن تستخدم اللون الأسود من C['text']
-
-# مثال تعديل إحدى الدوال
-def content_flex(title, icon, content, cmd_type):
     return FlexSendMessage(
-        alt_text=title,
+        alt_text="مساعدة",
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
-                layout='vertical',
-                backgroundColor=C['bg'],
-                paddingAll='20px',
+                layout='vertical', backgroundColor=C['bg'], paddingAll='20px',
                 contents=[
-                    BoxComponent(
-                        layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='16px',
-                        contents=[
-                            TextComponent(
-                                text=f"{icon} {title}",
-                                weight='bold',
-                                size='xl',
-                                color=C['text'],
-                                align='center'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        paddingAll='20px',
-                        backgroundColor=C['card_inner'],
-                        cornerRadius='12px',
-                        contents=[
-                            TextComponent(
-                                text=content,
-                                size='lg',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='6px'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            ButtonComponent(
-                                action=MessageAction(label=f'✨ التالي', text=cmd_type),
-                                style='primary',
-                                color=C['primary'],
-                                height='md'
-                            )
-                        ]
-                    )
+                    hdr("بوت عناد المالكي"),
+                    TextComponent(text="اختر من الأزرار أدناه", size='xs', color=C['txt2'], align='center', margin='md'),
+                    SeparatorComponent(margin='lg', color=C['bdr']),
+                    BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=items)
                 ]
             )
         )
     )
 
-# بقية الدوال puzzle_flex, ans_flex, games_flex, gq_flex, gr_flex بنفس الطريقة
+def puzzle_flex(p):
+    return FlexSendMessage(
+        alt_text="لغز",
+        contents=BubbleContainer(direction='rtl',
+            body=BoxComponent(layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                contents=[
+                    hdr("لغز"),
+                    BoxComponent(layout='vertical', margin='xl', paddingAll='24px', backgroundColor=C['card'], cornerRadius='16px',
+                                 contents=[TextComponent(text=p['question'], size='xl', color=C['txt'], wrap=True, align='center', weight='bold')]),
+                    BoxComponent(layout='vertical', margin='xl', spacing='md',
+                                 contents=[ButtonComponent(action=MessageAction(label='لمح',text='لمح'), style='secondary', color=C['sec'], height='md'),
+                                           ButtonComponent(action=MessageAction(label='جاوب',text='جاوب'), style='primary', color=C['pri'], height='md')])
+                ])))
 
-# … الكود الأصلي لبقية وظائف البوت بدون تغيير، مع استخدام C['text'] و C['text_muted'] للنصوص
+def ans_flex(a, t):
+    i, cl = ("جاوب", C['ok']) if "جاوب" in t else ("لمح", C['sec'])
+    return FlexSendMessage(alt_text=t,
+        contents=BubbleContainer(direction='rtl',
+            body=BoxComponent(layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
+                contents=[BoxComponent(layout='vertical', paddingAll='16px', backgroundColor=C['glass'], cornerRadius='16px',
+                                       contents=[TextComponent(text=f"{i} {t}", weight='bold', size='xl', color=cl, align='center')]),
+                          BoxComponent(layout='vertical', margin='xl', paddingAll='24px', backgroundColor=C['card'], cornerRadius='16px',
+                                       contents=[TextComponent(text=a, size='xl', color=C['txt'], wrap=True, align='center', weight='bold')])])))
 
+# ----------------- State & Commands -----------------
 rdl_st, gm_st = {}, {}
-
-VALID_COMMANDS = {
-    "سؤال", "سوال", "تحدي", "اعتراف", "منشن", "موقف", 
-    "لغز", "اقتباس", "تحليل", "تحليل شخصية", "شخصية", 
-    "مساعدة", "تلميح", "جواب", "لمح", "جاوب"
-}
-
-def is_valid_command(txt):
-    txt_lower = txt.lower().strip()
-    if txt_lower in [cmd.lower() for cmd in VALID_COMMANDS]:
-        return True
-    if txt.strip().isdigit():
-        return True
-    if txt_lower in ['1', '2', '3', 'a', 'b', 'c', 'أ', 'ب', 'ج']:
-        return True
-    return False
+CMDS = {"سؤال":["سؤال","سوال"], "تحدي":["تحدي"], "اعتراف":["اعتراف"], "منشن":["منشن"], "موقف":["موقف"], "لغز":["لغز"], "اقتباسات":["اقتباسات","اقتباس","حكمة"]}
 
 def find_cmd(t):
     t = t.lower().strip()
-    if t in ["سؤال", "سوال"]: return "سؤال"
-    elif t == "تحدي": return "تحدي"
-    elif t == "اعتراف": return "اعتراف"
-    elif t == "منشن": return "منشن"
-    elif t == "موقف": return "موقف"
-    elif t == "لغز": return "لغز"
-    elif t == "اقتباس": return "اقتباس"
+    for k, v in CMDS.items():
+        if t in [x.lower() for x in v]: return k
     return None
 
 def calc_res(ans, gi):
-    cnt = {"أ": 0, "ب": 0, "ج": 0}
+    cnt = {"أ":0,"ب":0,"ج":0}
     for a in ans:
-        if a in cnt:
-            cnt[a] += 1
+        if a in cnt: cnt[a]+=1
     mc = max(cnt, key=cnt.get)
     return cm.results.get(f"لعبة{gi+1}", {}).get(mc, "شخصيتك فريدة ومميزة!")
 
 def reply(tk, msg):
     try:
-        if isinstance(msg, TextSendMessage) and not msg.quick_reply:
-            msg.quick_reply = menu()
+        if isinstance(msg, TextSendMessage) and not msg.quick_reply: msg.quick_reply = menu()
         line.reply_message(tk, msg)
-    except Exception as e:
-        logging.error(f"Reply error: {e}")
+    except Exception as e: logging.error(f"Err:{e}")
 
+# ----------------- Routes -----------------
 @app.route("/", methods=["GET"])
-def home():
-    return "Bot is running!", 200
+def home(): return "OK", 200
 
 @app.route("/health", methods=["GET"])
-def health():
-    return {"status": "ok"}, 200
+def health(): return {"status":"ok"}, 200
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    sig = request.headers.get("X-Line-Signature", "")
+    sig = request.headers.get("X-Line-Signature","")
     body = request.get_data(as_text=True)
-    try:
-        handler.handle(body, sig)
-    except InvalidSignatureError:
-        abort(400)
-    except:
-        abort(500)
+    try: handler.handle(body, sig)
+    except InvalidSignatureError: abort(400)
+    except: abort(500)
     return "OK"
 
+# ----------------- Message Handling -----------------
 @handler.add(MessageEvent, message=TextMessage)
 def handle_msg(ev):
-    uid = ev.source.user_id
-    txt = ev.message.text.strip()
+    uid, txt = ev.source.user_id, ev.message.text.strip()
     tl = txt.lower()
-    
-    if not is_valid_command(txt):
-        return
-    
     try:
-        if tl == "مساعدة":
-            reply(ev.reply_token, help_flex())
-            return
-        
+        if tl=="مساعدة": reply(ev.reply_token, help_flex()); return
+
         cmd = find_cmd(txt)
         if cmd:
-            if cmd == "لغز":
+            if cmd=="لغز":
                 r = cm.get_r()
-                if r:
-                    rdl_st[uid] = r
-                    reply(ev.reply_token, puzzle_flex(r))
-                return
-                
-            elif cmd == "اقتباس":
+                if r: rdl_st[uid] = r; reply(ev.reply_token, puzzle_flex(r))
+                else: reply(ev.reply_token, TextSendMessage(text="لا توجد ألغاز متاحة"))
+            elif cmd=="اقتباسات":
                 q = cm.get_q()
-                if q:
-                    reply(ev.reply_token, content_flex(
-                        "اقتباس",
-                        "📖",
-                        f'"{q.get("text", "")}"\\n\\n— {q.get("author", "مجهول")}',
-                        "اقتباس"
-                    ))
-                return
-                
-            elif cmd == "منشن":
+                reply(ev.reply_token, TextSendMessage(text=f"اقتباس\n\n\"{q.get('text','')}\"\n\n— {q.get('author','مجهول')}") if q else TextSendMessage(text="لا توجد اقتباسات"))
+            elif cmd=="منشن":
                 q = cm.get_m()
-                if q:
-                    reply(ev.reply_token, content_flex("سؤال منشن", "📱", q, "منشن"))
-                return
-                
-            elif cmd == "موقف":
+                reply(ev.reply_token, TextSendMessage(text=f"سؤال منشن\n\n{q}") if q else TextSendMessage(text="لا توجد أسئلة"))
+            elif cmd=="موقف":
                 s = cm.get_s()
-                if s:
-                    reply(ev.reply_token, content_flex("موقف للنقاش", "🤔", s, "موقف"))
-                return
-                
+                reply(ev.reply_token, TextSendMessage(text=f"موقف للنقاش\n\n{s}") if s else TextSendMessage(text="لا توجد مواقف"))
             else:
                 c = cm.get(cmd)
-                if c:
-                    icons = {"سؤال": "💭", "تحدي": "🎯", "اعتراف": "💬"}
-                    reply(ev.reply_token, content_flex(cmd, icons.get(cmd, ""), c, cmd))
-                return
-        
-        if tl in ["تلميح", "لمح"]:
-            if uid in rdl_st:
-                reply(ev.reply_token, ans_flex(rdl_st[uid].get('hint', 'لا يوجد'), "تلميح"))
+                reply(ev.reply_token, TextSendMessage(text=f"{cmd}\n\n{c}") if c else TextSendMessage(text=f"لا توجد بيانات"))
             return
-            
-        if tl in ["جواب", "جاوب"]:
-            if uid in rdl_st:
-                r = rdl_st.pop(uid)
-                reply(ev.reply_token, ans_flex(r['answer'], "جواب"))
-            return
-        
-        if tl in ["تحليل", "تحليل شخصية", "شخصية"]:
-            if cm.games:
-                reply(ev.reply_token, games_flex(cm.games))
-            return
-        
-        if txt.isdigit() and uid not in gm_st and 1 <= int(txt) <= len(cm.games):
-            gi = int(txt) - 1
-            gm_st[uid] = {"gi": gi, "qi": 0, "ans": []}
-            g = cm.games[gi]
-            reply(ev.reply_token, gq_flex(
-                g.get('title', f'تحليل {int(txt)}'),
-                g["questions"][0],
-                f"1/{len(g['questions'])}"
-            ))
-            return
-        
-        if uid in gm_st:
-            st = gm_st[uid]
-            amap = {
-                "1": "أ", "2": "ب", "3": "ج",
-                "a": "أ", "b": "ب", "c": "ج",
-                "أ": "أ", "ب": "ب", "ج": "ج"
-            }
-            ans = amap.get(tl, None)
-            
-            if ans:
-                st["ans"].append(ans)
-                g = cm.games[st["gi"]]
-                st["qi"] += 1
-                
-                if st["qi"] < len(g["questions"]):
-                    reply(ev.reply_token, gq_flex(
-                        g.get('title', 'تحليل'),
-                        g["questions"][st["qi"]],
-                        f"{st['qi']+1}/{len(g['questions'])}"
-                    ))
-                else:
-                    reply(ev.reply_token, gr_flex(calc_res(st["ans"], st["gi"])))
-                    del gm_st[uid]
-                return
-        
-    except Exception as e:
-        logging.error(f"Error: {e}")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+        if tl=="لمح":
+            if uid in rdl_st: reply(ev.reply_token, ans_flex(rdl_st[uid].get('hint','لا يوجد'),"لمح"))
+            else: reply(ev.reply_token, TextSendMessage(text="اطلب لغز أولاً"))
+            return
+        if tl=="جاوب":
+            if uid in rdl_st: r = rdl_st.pop(uid); reply(ev.reply_token, ans_flex(r['answer'], "جاوب"))
+            else: reply(ev.reply_token, TextSendMessage(text="اطلب لغز أولاً"))
+            return
+
+        if tl in ["تحليل","تحليل شخصية","شخصية"]:
+            if cm.games: reply(ev.reply_token, games_flex(cm.games))
+            else: reply(ev.reply_token, TextSendMessage(text="لا توجد تحليلات متاحة"))
+            return
+
+        reply(ev.reply_token, TextSendMessage(text="اكتب 'مساعدة' لعرض الأوامر"))
+    except Exception as e: logging.error(f"Err:{e}"); reply(ev.reply_token, TextSendMessage(text="حدث خطأ، حاول مرة أخرى"))
+
+if __name__=="__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT",5000)))
