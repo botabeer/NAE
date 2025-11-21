@@ -34,27 +34,32 @@ handler = WebhookHandler(SECRET)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 C = {
-    # خلفيات متدرجة (داكن أنيق)
-    'bg': '#0F0F1A',
-    'card': '#1A1A2E',
-    'card_light': '#252542',
+    # ═══════════════════════════════════════
+    # 🌙 ستايل ليلي داكن - Dark Night
+    # ═══════════════════════════════════════
     
-    # اللون الرئيسي (بنفسجي هادئ)
-    'primary': '#8B5CF6',
-    'primary_soft': '#A78BFA',
+    # الخلفيات
+    'bg': '#0F0F1A',           # خلفية رئيسية
+    'card': '#1A1A2E',         # البطاقات
+    'card_light': '#252542',   # البطاقات الفاتحة
     
-    # ألوان الأقسام (متناسقة)
-    'blue': '#60A5FA',
-    'cyan': '#22D3EE', 
-    'pink': '#F472B6',
-    'orange': '#FB923C',
-    'green': '#4ADE80',
-    'yellow': '#FBBF24',
+    # البنفسجي الرئيسي
+    'primary': '#8B5CF6',      # اللون الأساسي
+    'primary_soft': '#A78BFA', # اللون الفاتح
+    'accent': '#7C3AED',       # لون التمييز
+    
+    # ألوان الأقسام
+    'blue': '#60A5FA',         # سؤال
+    'cyan': '#22D3EE',         # منشن
+    'pink': '#F472B6',         # اعتراف
+    'orange': '#FB923C',       # تحدي
+    'green': '#4ADE80',        # اقتباسات
+    'yellow': '#FBBF24',       # موقف
     
     # النصوص
-    'text': '#F1F5F9',
-    'text_dim': '#94A3B8',
-    'text_muted': '#64748B',
+    'text': '#F1F5F9',         # نص رئيسي (أبيض مائل للرمادي)
+    'text_dim': '#94A3B8',     # نص ثانوي
+    'text_muted': '#64748B',   # نص خافت
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -84,14 +89,14 @@ ANS_MAP = {"1": "أ", "2": "ب", "3": "ج", "a": "أ", "b": "ب", "c": "ج", "أ
 
 # معلومات الأقسام
 INFO = {
-    'سؤال': ('💭', 'أسئلة للنقاش', C['blue']),
-    'منشن': ('👥', 'أسئلة منشن', C['cyan']),
-    'اعتراف': ('💎', 'اعترافات للنقاش', C['pink']),
-    'تحدي': ('⚡', 'تحديات ممتعة', C['orange']),
-    'موقف': ('🎭', 'مواقف للنقاش', C['yellow']),
-    'اقتباسات': ('✨', 'حكم وأقوال', C['green']),
-    'لغز': ('🧩', 'ألغاز ذهنية', C['primary']),
-    'تحليل': ('🔮', 'تحليل الشخصية', C['primary_soft']),
+    'سؤال': ('▪️', 'أسئلة للنقاش', C['blue']),
+    'منشن': ('▪️', 'أسئلة منشن', C['cyan']),
+    'اعتراف': ('▪️', 'اعترافات جريئة', C['pink']),
+    'تحدي': ('▪️', 'تحديات ممتعة', C['orange']),
+    'موقف': ('▪️', 'مواقف للنقاش', C['yellow']),
+    'اقتباسات': ('▪️', 'حكم وأقوال', C['green']),
+    'لغز': ('▪️', 'ألغاز ذهنية', C['primary']),
+    'تحليل': ('▪️', 'تحليل الشخصية', C['primary_soft']),
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -194,7 +199,7 @@ def flex_help():
             paddingAll='16px',
             margin='md',
             contents=[
-                TextComponent(text=icon, size='xl', flex=0),
+                TextComponent(text=icon, size='xl', flex=0, color=color),
                 BoxComponent(
                     layout='vertical',
                     paddingStart='16px',
@@ -222,7 +227,6 @@ def flex_help():
                         layout='vertical',
                         alignItems='center',
                         contents=[
-                            TextComponent(text="", size='3xl'),
                             TextComponent(
                                 text="بوت عناد المالكي",
                                 size='xl',
@@ -231,7 +235,7 @@ def flex_help():
                                 margin='lg'
                             ),
                             TextComponent(
-                                text="═══════════════",
+                                text="─────────",
                                 size='sm',
                                 color=C['card_light'],
                                 margin='md'
@@ -312,7 +316,7 @@ def flex_quote(q):
     author = q.get('author', 'مجهول')
     
     return FlexSendMessage(
-        alt_text="✨ اقتباس",
+        alt_text="▪️ اقتباس",
         quick_reply=MENU,
         contents=BubbleContainer(
             direction='rtl',
@@ -321,7 +325,7 @@ def flex_quote(q):
                 backgroundColor=C['bg'],
                 paddingAll='24px',
                 contents=[
-                    TextComponent(text="✨", size='3xl', align='center'),
+                    TextComponent(text="▪️", size='xl', align='center', color=C['green']),
                     BoxComponent(
                         layout='vertical',
                         backgroundColor=C['card'],
@@ -364,7 +368,7 @@ def flex_quote(q):
 def flex_riddle(r):
     """رسالة اللغز"""
     return FlexSendMessage(
-        alt_text="🧩 لغز",
+        alt_text="▪️ لغز",
         quick_reply=MENU,
         contents=BubbleContainer(
             direction='rtl',
@@ -379,7 +383,7 @@ def flex_riddle(r):
                         justifyContent='center',
                         alignItems='center',
                         contents=[
-                            TextComponent(text="🧩", size='xl'),
+                            TextComponent(text="▪️", size='xl', color=C['primary']),
                             TextComponent(text="لغز", size='lg', color=C['primary'], weight='bold', margin='lg')
                         ]
                     ),
@@ -410,14 +414,14 @@ def flex_riddle(r):
                         spacing='md',
                         contents=[
                             ButtonComponent(
-                                action=MessageAction(label='💡 تلميح', text='لمح'),
+                                action=MessageAction(label='تلميح', text='لمح'),
                                 style='secondary',
                                 color=C['card_light'],
                                 height='sm',
                                 flex=1
                             ),
                             ButtonComponent(
-                                action=MessageAction(label='✓ الجواب', text='جاوب'),
+                                action=MessageAction(label='الجواب', text='جاوب'),
                                 style='primary',
                                 color=C['primary'],
                                 height='sm',
@@ -432,12 +436,11 @@ def flex_riddle(r):
 
 def flex_answer(text, is_hint=True):
     """رسالة التلميح أو الجواب"""
-    icon = "💡" if is_hint else "✓"
     title = "تلميح" if is_hint else "الجواب"
     color = C['yellow'] if is_hint else C['green']
     
     return FlexSendMessage(
-        alt_text=f"{icon} {title}",
+        alt_text=f"▪️ {title}",
         quick_reply=MENU,
         contents=BubbleContainer(
             direction='rtl',
@@ -451,7 +454,7 @@ def flex_answer(text, is_hint=True):
                         justifyContent='center',
                         alignItems='center',
                         contents=[
-                            TextComponent(text=icon, size='xl'),
+                            TextComponent(text="▪️", size='xl', color=color),
                             TextComponent(text=title, size='lg', color=color, weight='bold', margin='lg')
                         ]
                     ),
@@ -505,7 +508,7 @@ def flex_games():
         ))
     
     return FlexSendMessage(
-        alt_text="🔮 تحليل الشخصية",
+        alt_text="▪️ تحليل الشخصية",
         quick_reply=MENU,
         contents=BubbleContainer(
             direction='rtl',
@@ -514,7 +517,7 @@ def flex_games():
                 backgroundColor=C['bg'],
                 paddingAll='24px',
                 contents=[
-                    TextComponent(text="🔮", size='3xl', align='center'),
+                    TextComponent(text="▪️", size='xl', align='center', color=C['primary_soft']),
                     TextComponent(
                         text="تحليل الشخصية",
                         size='xl',
@@ -557,7 +560,7 @@ def flex_game_q(game, qi):
         ))
     
     return FlexSendMessage(
-        alt_text=f"🔮 {title}",
+        alt_text=f"▪️ {title}",
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
@@ -570,7 +573,7 @@ def flex_game_q(game, qi):
                         layout='horizontal',
                         justifyContent='space-between',
                         contents=[
-                            TextComponent(text=f"🔮 {title}", size='sm', color=C['primary_soft'], weight='bold'),
+                            TextComponent(text=f"▪️ {title}", size='sm', color=C['primary_soft'], weight='bold'),
                             TextComponent(text=progress, size='sm', color=C['text_muted'])
                         ]
                     ),
@@ -622,7 +625,7 @@ def flex_game_q(game, qi):
 def flex_result(result):
     """نتيجة التحليل"""
     return FlexSendMessage(
-        alt_text="🔮 النتيجة",
+        alt_text="▪️ النتيجة",
         quick_reply=MENU,
         contents=BubbleContainer(
             direction='rtl',
@@ -631,7 +634,7 @@ def flex_result(result):
                 backgroundColor=C['bg'],
                 paddingAll='24px',
                 contents=[
-                    TextComponent(text="💜", size='3xl', align='center'),
+                    TextComponent(text="▪️", size='xl', align='center', color=C['primary_soft']),
                     TextComponent(
                         text="نتيجة التحليل",
                         size='xl',
@@ -659,7 +662,7 @@ def flex_result(result):
                         ]
                     ),
                     ButtonComponent(
-                        action=MessageAction(label='🔄 تحليل جديد', text='تحليل'),
+                        action=MessageAction(label='تحليل جديد', text='تحليل'),
                         style='primary',
                         color=C['primary'],
                         height='sm',
