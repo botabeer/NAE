@@ -133,31 +133,39 @@ def help_flex():
         alt_text="الأوامر",
         contents=BubbleContainer(
             direction='rtl',
-            body=BoxComponent(
+            size='mega',
+            hero=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='20px',
+                paddingAll='0px',
                 contents=[
                     BoxComponent(
                         layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='18px',
+                        backgroundColor=C['bg'],
+                        paddingAll='20px',
                         contents=[
-                            TextComponent(
-                                text="✨ قائمة الأوامر",
-                                weight='bold',
-                                size='xxl',
-                                color=C['text'],
-                                align='center'
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['card'],
+                                cornerRadius='14px',
+                                paddingAll='18px',
+                                contents=[
+                                    TextComponent(
+                                        text="✨ قائمة الأوامر",
+                                        weight='bold',
+                                        size='xxl',
+                                        color=C['text'],
+                                        align='center'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                spacing='sm',
+                                contents=items
                             )
                         ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        spacing='sm',
-                        contents=items
                     )
                 ]
             )
@@ -169,52 +177,60 @@ def content_flex(title, icon, content, cmd_type):
         alt_text=title,
         contents=BubbleContainer(
             direction='rtl',
-            body=BoxComponent(
+            size='mega',
+            hero=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='20px',
+                paddingAll='0px',
                 contents=[
                     BoxComponent(
                         layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='16px',
-                        contents=[
-                            TextComponent(
-                                text=f"{icon} {title}",
-                                weight='bold',
-                                size='xl',
-                                color=C['text'],
-                                align='center'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
+                        backgroundColor=C['bg'],
                         paddingAll='20px',
-                        backgroundColor=C['card_inner'],
-                        cornerRadius='12px',
                         contents=[
-                            TextComponent(
-                                text=content,
-                                size='lg',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='6px'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            ButtonComponent(
-                                action=MessageAction(label=f'✨ التالي', text=cmd_type),
-                                style='primary',
-                                color=C['primary'],
-                                height='md'
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['card'],
+                                cornerRadius='14px',
+                                paddingAll='16px',
+                                contents=[
+                                    TextComponent(
+                                        text=f"{icon} {title}",
+                                        weight='bold',
+                                        size='xl',
+                                        color=C['text'],
+                                        align='center'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                paddingAll='20px',
+                                backgroundColor=C['card_inner'],
+                                cornerRadius='12px',
+                                contents=[
+                                    TextComponent(
+                                        text=content,
+                                        size='lg',
+                                        color=C['text'],
+                                        wrap=True,
+                                        align='center',
+                                        lineSpacing='6px'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                contents=[
+                                    ButtonComponent(
+                                        action=MessageAction(label=f'✨ التالي', text=cmd_type),
+                                        style='primary',
+                                        color=C['primary'],
+                                        height='md'
+                                    )
+                                ]
                             )
                         ]
                     )
@@ -228,66 +244,74 @@ def puzzle_flex(p):
         alt_text="لغز",
         contents=BubbleContainer(
             direction='rtl',
-            body=BoxComponent(
+            size='mega',
+            hero=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='20px',
+                paddingAll='0px',
                 contents=[
                     BoxComponent(
                         layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='16px',
-                        contents=[
-                            TextComponent(
-                                text="🧩 لغز",
-                                weight='bold',
-                                size='xl',
-                                color=C['text'],
-                                align='center'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
+                        backgroundColor=C['bg'],
                         paddingAll='20px',
-                        backgroundColor=C['card_inner'],
-                        cornerRadius='12px',
                         contents=[
-                            TextComponent(
-                                text=p['question'],
-                                size='lg',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                weight='bold',
-                                lineSpacing='6px'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        spacing='sm',
-                        contents=[
-                            ButtonComponent(
-                                action=MessageAction(label='💡 تلميح', text='تلميح'),
-                                style='secondary',
-                                color=C['btn_secondary'],
-                                height='md'
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['card'],
+                                cornerRadius='14px',
+                                paddingAll='16px',
+                                contents=[
+                                    TextComponent(
+                                        text="🧩 لغز",
+                                        weight='bold',
+                                        size='xl',
+                                        color=C['text'],
+                                        align='center'
+                                    )
+                                ]
                             ),
-                            ButtonComponent(
-                                action=MessageAction(label='✅ الجواب', text='جواب'),
-                                style='primary',
-                                color=C['primary'],
-                                height='md'
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                paddingAll='20px',
+                                backgroundColor=C['card_inner'],
+                                cornerRadius='12px',
+                                contents=[
+                                    TextComponent(
+                                        text=p['question'],
+                                        size='lg',
+                                        color=C['text'],
+                                        wrap=True,
+                                        align='center',
+                                        weight='bold',
+                                        lineSpacing='6px'
+                                    )
+                                ]
                             ),
-                            ButtonComponent(
-                                action=MessageAction(label='➡️ التالي', text='لغز'),
-                                style='primary',
-                                color=C['primary'],
-                                height='md'
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                spacing='sm',
+                                contents=[
+                                    ButtonComponent(
+                                        action=MessageAction(label='💡 تلميح', text='تلميح'),
+                                        style='secondary',
+                                        color=C['btn_secondary'],
+                                        height='md'
+                                    ),
+                                    ButtonComponent(
+                                        action=MessageAction(label='✅ الجواب', text='جواب'),
+                                        style='primary',
+                                        color=C['primary'],
+                                        height='md'
+                                    ),
+                                    ButtonComponent(
+                                        action=MessageAction(label='➡️ التالي', text='لغز'),
+                                        style='primary',
+                                        color=C['primary'],
+                                        height='md'
+                                    )
+                                ]
                             )
                         ]
                     )
@@ -305,41 +329,49 @@ def ans_flex(a, t):
         alt_text=title,
         contents=BubbleContainer(
             direction='rtl',
-            body=BoxComponent(
+            size='mega',
+            hero=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='20px',
+                paddingAll='0px',
                 contents=[
                     BoxComponent(
                         layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='16px',
-                        contents=[
-                            TextComponent(
-                                text=f"{icon} {title}",
-                                weight='bold',
-                                size='xl',
-                                color=C['text'],
-                                align='center'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
+                        backgroundColor=C['bg'],
                         paddingAll='20px',
-                        backgroundColor=C['card_inner'],
-                        cornerRadius='12px',
                         contents=[
-                            TextComponent(
-                                text=a,
-                                size='lg',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                weight='bold',
-                                lineSpacing='6px'
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['card'],
+                                cornerRadius='14px',
+                                paddingAll='16px',
+                                contents=[
+                                    TextComponent(
+                                        text=f"{icon} {title}",
+                                        weight='bold',
+                                        size='xl',
+                                        color=C['text'],
+                                        align='center'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                paddingAll='20px',
+                                backgroundColor=C['card_inner'],
+                                cornerRadius='12px',
+                                contents=[
+                                    TextComponent(
+                                        text=a,
+                                        size='lg',
+                                        color=C['text'],
+                                        wrap=True,
+                                        align='center',
+                                        weight='bold',
+                                        lineSpacing='6px'
+                                    )
+                                ]
                             )
                         ]
                     )
@@ -367,31 +399,39 @@ def games_flex(g):
         alt_text="تحليل الشخصية",
         contents=BubbleContainer(
             direction='rtl',
-            body=BoxComponent(
+            size='mega',
+            hero=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='20px',
+                paddingAll='0px',
                 contents=[
                     BoxComponent(
                         layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='16px',
+                        backgroundColor=C['bg'],
+                        paddingAll='20px',
                         contents=[
-                            TextComponent(
-                                text="🧠 تحليل الشخصية",
-                                weight='bold',
-                                size='xl',
-                                color=C['text'],
-                                align='center'
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['card'],
+                                cornerRadius='14px',
+                                paddingAll='16px',
+                                contents=[
+                                    TextComponent(
+                                        text="🧠 تحليل الشخصية",
+                                        weight='bold',
+                                        size='xl',
+                                        color=C['text'],
+                                        align='center'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                spacing='sm',
+                                contents=btns
                             )
                         ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        spacing='sm',
-                        contents=btns
                     )
                 ]
             )
@@ -414,55 +454,63 @@ def gq_flex(t, q, p):
         alt_text=t,
         contents=BubbleContainer(
             direction='rtl',
-            body=BoxComponent(
+            size='mega',
+            hero=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='20px',
+                paddingAll='0px',
                 contents=[
                     BoxComponent(
-                        layout='horizontal',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='16px',
+                        layout='vertical',
+                        backgroundColor=C['bg'],
+                        paddingAll='20px',
                         contents=[
-                            TextComponent(
-                                text=t,
-                                weight='bold',
-                                size='lg',
-                                color=C['text'],
-                                flex=1
+                            BoxComponent(
+                                layout='horizontal',
+                                backgroundColor=C['card'],
+                                cornerRadius='14px',
+                                paddingAll='16px',
+                                contents=[
+                                    TextComponent(
+                                        text=t,
+                                        weight='bold',
+                                        size='lg',
+                                        color=C['text'],
+                                        flex=1
+                                    ),
+                                    TextComponent(
+                                        text=p,
+                                        size='sm',
+                                        color=C['text_muted'],
+                                        flex=0,
+                                        align='end'
+                                    )
+                                ]
                             ),
-                            TextComponent(
-                                text=p,
-                                size='sm',
-                                color=C['text_muted'],
-                                flex=0,
-                                align='end'
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                paddingAll='18px',
+                                backgroundColor=C['card_inner'],
+                                cornerRadius='12px',
+                                contents=[
+                                    TextComponent(
+                                        text=q['question'],
+                                        size='lg',
+                                        color=C['text'],
+                                        wrap=True,
+                                        align='center',
+                                        lineSpacing='6px'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                spacing='sm',
+                                contents=btns
                             )
                         ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        paddingAll='18px',
-                        backgroundColor=C['card_inner'],
-                        cornerRadius='12px',
-                        contents=[
-                            TextComponent(
-                                text=q['question'],
-                                size='lg',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='6px'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        spacing='sm',
-                        contents=btns
                     )
                 ]
             )
@@ -474,51 +522,59 @@ def gr_flex(r):
         alt_text="النتيجة",
         contents=BubbleContainer(
             direction='rtl',
-            body=BoxComponent(
+            size='mega',
+            hero=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='20px',
+                paddingAll='0px',
                 contents=[
                     BoxComponent(
                         layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='14px',
-                        paddingAll='16px',
-                        contents=[
-                            TextComponent(
-                                text='🎊 نتيجة التحليل',
-                                weight='bold',
-                                size='xl',
-                                color=C['text'],
-                                align='center'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
+                        backgroundColor=C['bg'],
                         paddingAll='20px',
-                        backgroundColor=C['card_inner'],
-                        cornerRadius='12px',
                         contents=[
-                            TextComponent(
-                                text=r,
-                                size='md',
-                                color=C['text'],
-                                wrap=True,
-                                lineSpacing='6px'
-                            )
-                        ]
-                    ),
-                    BoxComponent(
-                        layout='vertical',
-                        margin='lg',
-                        contents=[
-                            ButtonComponent(
-                                action=MessageAction(label='🔄 تحليل جديد', text='تحليل'),
-                                style='primary',
-                                color=C['primary'],
-                                height='md'
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['card'],
+                                cornerRadius='14px',
+                                paddingAll='16px',
+                                contents=[
+                                    TextComponent(
+                                        text='🎊 نتيجة التحليل',
+                                        weight='bold',
+                                        size='xl',
+                                        color=C['text'],
+                                        align='center'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                paddingAll='20px',
+                                backgroundColor=C['card_inner'],
+                                cornerRadius='12px',
+                                contents=[
+                                    TextComponent(
+                                        text=r,
+                                        size='md',
+                                        color=C['text'],
+                                        wrap=True,
+                                        lineSpacing='6px'
+                                    )
+                                ]
+                            ),
+                            BoxComponent(
+                                layout='vertical',
+                                margin='lg',
+                                contents=[
+                                    ButtonComponent(
+                                        action=MessageAction(label='🔄 تحليل جديد', text='تحليل'),
+                                        style='primary',
+                                        color=C['primary'],
+                                        height='md'
+                                    )
+                                ]
                             )
                         ]
                     )
