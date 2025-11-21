@@ -30,23 +30,24 @@ line_bot = LineBotApi(TOKEN)
 handler = WebhookHandler(SECRET)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 🎨 التصميم - ألوان هادئة ومريحة للعين
+# 🎨 التصميم - ستايل ليلي داكن أنيق وعصري
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 C = {
     # ═══════════════════════════════════════
-    # 🌙 ستايل ليلي داكن - Dark Night
+    # 🌙 Dark Modern Theme - ليلي داكن عصري
     # ═══════════════════════════════════════
     
     # الخلفيات
-    'bg': '#0F0F1A',           # خلفية رئيسية
-    'card': '#1A1A2E',         # البطاقات
-    'card_light': '#252542',   # البطاقات الفاتحة
+    'bg': '#0B0B14',           # خلفية داكنة جداً
+    'card': '#161625',         # البطاقات الداكنة
+    'card_light': '#1E1E35',   # البطاقات الأفتح قليلاً
     
-    # البنفسجي الرئيسي
-    'primary': '#8B5CF6',      # اللون الأساسي
-    'primary_soft': '#A78BFA', # اللون الفاتح
-    'accent': '#7C3AED',       # لون التمييز
+    # البنفسجي المضيء
+    'primary': '#9D7EF2',      # بنفسجي مضيء
+    'primary_soft': '#B39DFF', # بنفسجي فاتح
+    'accent': '#8B5CF6',       # لون التمييز
+    'glow': '#A78BFA',         # للتوهج
     
     # ألوان الأقسام
     'blue': '#60A5FA',         # سؤال
@@ -57,9 +58,9 @@ C = {
     'yellow': '#FBBF24',       # موقف
     
     # النصوص
-    'text': '#F1F5F9',         # نص رئيسي (أبيض مائل للرمادي)
-    'text_dim': '#94A3B8',     # نص ثانوي
-    'text_muted': '#64748B',   # نص خافت
+    'text': '#FFFFFF',         # نص أبيض نقي
+    'text_dim': '#B8B8D1',     # نص ثانوي
+    'text_muted': '#7E7E9A',   # نص خافت
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -89,14 +90,14 @@ ANS_MAP = {"1": "أ", "2": "ب", "3": "ج", "a": "أ", "b": "ب", "c": "ج", "أ
 
 # معلومات الأقسام
 INFO = {
-    'سؤال': ('▪️', 'أسئلة للنقاش', C['blue']),
-    'منشن': ('▪️', 'أسئلة منشن', C['cyan']),
-    'اعتراف': ('▪️', 'اعترافات جريئة', C['pink']),
-    'تحدي': ('▪️', 'تحديات ممتعة', C['orange']),
-    'موقف': ('▪️', 'مواقف للنقاش', C['yellow']),
-    'اقتباسات': ('▪️', 'حكم وأقوال', C['green']),
-    'لغز': ('▪️', 'ألغاز ذهنية', C['primary']),
-    'تحليل': ('▪️', 'تحليل الشخصية', C['primary_soft']),
+    '��ؤال': ('☁️', 'أسئلة للنقاش', C['blue']),
+    'منشن': ('☁️', 'أسئلة منشن', C['cyan']),
+    'اعتراف': ('☁️', 'اعترافات جريئة', C['pink']),
+    'تحدي': ('☁️', 'تحديات ممتعة', C['orange']),
+    'موقف': ('☁️', 'مواقف للنقاش', C['yellow']),
+    'اقتباسات': ('☁️', 'حكم وأقوال', C['green']),
+    'لغز': ('💡', 'ألغاز ذهنية', C['primary']),
+    'تحليل': ('☁️', 'تحليل الشخصية', C['primary_soft']),
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -250,7 +251,7 @@ def flex_help():
     )
 
 def flex_simple(cmd, text):
-    """رسالة بسيطة موحدة"""
+    """رسالة بسيطة موحدة - ستايل عصري مع حواف مضيئة"""
     icon, _, color = INFO.get(cmd, ('💬', '', C['primary']))
     
     return FlexSendMessage(
@@ -261,47 +262,68 @@ def flex_simple(cmd, text):
             body=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='24px',
+                paddingAll='0px',
                 contents=[
-                    # الرأس
-                    BoxComponent(
-                        layout='horizontal',
-                        justifyContent='center',
-                        alignItems='center',
-                        contents=[
-                            TextComponent(text=icon, size='xl'),
-                            TextComponent(
-                                text=cmd,
-                                size='lg',
-                                color=color,
-                                weight='bold',
-                                margin='lg'
-                            )
-                        ]
-                    ),
-                    # الخط الفاصل
-                    BoxComponent(
-                        layout='vertical',
-                        backgroundColor=color,
-                        height='2px',
-                        margin='xl',
-                        cornerRadius='1px'
-                    ),
-                    # المحتوى
+                    # حاوية مع حدود مضيئة
                     BoxComponent(
                         layout='vertical',
                         backgroundColor=C['card'],
-                        cornerRadius='16px',
-                        paddingAll='24px',
-                        margin='xl',
+                        cornerRadius='24px',
+                        paddingAll='3px',
+                        borderWidth='2px',
+                        borderColor=color,
+                        margin='md',
                         contents=[
-                            TextComponent(
-                                text=text,
-                                size='md',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='8px'
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['bg'],
+                                cornerRadius='22px',
+                                paddingAll='28px',
+                                contents=[
+                                    # الرأس
+                                    BoxComponent(
+                                        layout='horizontal',
+                                        justifyContent='center',
+                                        alignItems='center',
+                                        contents=[
+                                            TextComponent(text=icon, size='xxl', flex=0),
+                                            TextComponent(
+                                                text=cmd,
+                                                size='xl',
+                                                color=color,
+                                                weight='bold',
+                                                margin='lg',
+                                                flex=0
+                                            )
+                                        ]
+                                    ),
+                                    # الخط الفاصل المضيء
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=color,
+                                        height='3px',
+                                        margin='xl',
+                                        cornerRadius='2px'
+                                    ),
+                                    # المحتوى
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=C['card'],
+                                        cornerRadius='20px',
+                                        paddingAll='28px',
+                                        margin='xl',
+                                        contents=[
+                                            TextComponent(
+                                                text=text,
+                                                size='lg',
+                                                color=C['text'],
+                                                wrap=True,
+                                                align='center',
+                                                lineSpacing='10px'
+                                            )
+                                        ]
+                                    )
+                                ]
                             )
                         ]
                     )
@@ -316,357 +338,67 @@ def flex_quote(q):
     author = q.get('author', 'مجهول')
     
     return FlexSendMessage(
-        alt_text="▪️ اقتباس",
+        alt_text="☁️ اقتباس",
         quick_reply=MENU,
         contents=BubbleContainer(
             direction='rtl',
             body=BoxComponent(
                 layout='vertical',
                 backgroundColor=C['bg'],
-                paddingAll='24px',
+                paddingAll='0px',
                 contents=[
-                    TextComponent(text="▪️", size='xl', align='center', color=C['green']),
                     BoxComponent(
                         layout='vertical',
                         backgroundColor=C['card'],
-                        cornerRadius='16px',
-                        paddingAll='28px',
-                        margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=f'❝ {text} ❞',
-                                size='md',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='10px'
-                            ),
-                            BoxComponent(
-                                layout='vertical',
-                                backgroundColor=C['green'],
-                                height='2px',
-                                margin='xl',
-                                cornerRadius='1px',
-                                paddingStart='60px',
-                                paddingEnd='60px'
-                            ),
-                            TextComponent(
-                                text=f"— {author}",
-                                size='md',
-                                color=C['green'],
-                                align='center',
-                                margin='xl',
-                                weight='bold'
-                            )
-                        ]
-                    )
-                ]
-            )
-        )
-    )
-
-def flex_riddle(r):
-    """رسالة اللغز"""
-    return FlexSendMessage(
-        alt_text="▪️ لغز",
-        quick_reply=MENU,
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                backgroundColor=C['bg'],
-                paddingAll='24px',
-                contents=[
-                    # الرأس
-                    BoxComponent(
-                        layout='horizontal',
-                        justifyContent='center',
-                        alignItems='center',
-                        contents=[
-                            TextComponent(text="▪️", size='xl', color=C['primary']),
-                            TextComponent(text="لغز", size='lg', color=C['primary'], weight='bold', margin='lg')
-                        ]
-                    ),
-                    BoxComponent(layout='vertical', backgroundColor=C['primary'], height='2px', margin='xl', cornerRadius='1px'),
-                    # السؤال
-                    BoxComponent(
-                        layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='16px',
-                        paddingAll='24px',
-                        margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=r.get('question', ''),
-                                size='md',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='8px',
-                                weight='bold'
-                            )
-                        ]
-                    ),
-                    # الأزرار
-                    BoxComponent(
-                        layout='horizontal',
-                        margin='xl',
-                        spacing='md',
-                        contents=[
-                            ButtonComponent(
-                                action=MessageAction(label='تلميح', text='لمح'),
-                                style='secondary',
-                                color=C['card_light'],
-                                height='sm',
-                                flex=1
-                            ),
-                            ButtonComponent(
-                                action=MessageAction(label='الجواب', text='جاوب'),
-                                style='primary',
-                                color=C['primary'],
-                                height='sm',
-                                flex=1
-                            )
-                        ]
-                    )
-                ]
-            )
-        )
-    )
-
-def flex_answer(text, is_hint=True):
-    """رسالة التلميح أو الجواب"""
-    title = "تلميح" if is_hint else "الجواب"
-    color = C['yellow'] if is_hint else C['green']
-    
-    return FlexSendMessage(
-        alt_text=f"▪️ {title}",
-        quick_reply=MENU,
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                backgroundColor=C['bg'],
-                paddingAll='24px',
-                contents=[
-                    BoxComponent(
-                        layout='horizontal',
-                        justifyContent='center',
-                        alignItems='center',
-                        contents=[
-                            TextComponent(text="▪️", size='xl', color=color),
-                            TextComponent(text=title, size='lg', color=color, weight='bold', margin='lg')
-                        ]
-                    ),
-                    BoxComponent(layout='vertical', backgroundColor=color, height='2px', margin='xl', cornerRadius='1px'),
-                    BoxComponent(
-                        layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='16px',
-                        paddingAll='24px',
-                        margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=text,
-                                size='lg',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                weight='bold'
-                            )
-                        ]
-                    )
-                ]
-            )
-        )
-    )
-
-def flex_games():
-    """قائمة ألعاب التحليل"""
-    games = content.data.get('تحليل', [])
-    if not games: return None
-    
-    btns = []
-    for i, g in enumerate(games[:8], 1):
-        btns.append(BoxComponent(
-            layout='horizontal',
-            backgroundColor=C['card'],
-            cornerRadius='12px',
-            paddingAll='14px',
-            margin='sm',
-            action=MessageAction(text=str(i)),
-            contents=[
-                TextComponent(text=str(i), size='lg', color=C['primary'], weight='bold', flex=0),
-                TextComponent(
-                    text=g.get('title', f'تحليل {i}'),
-                    size='md',
-                    color=C['text'],
-                    flex=1,
-                    margin='xl'
-                )
-            ]
-        ))
-    
-    return FlexSendMessage(
-        alt_text="▪️ تحليل الشخصية",
-        quick_reply=MENU,
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                backgroundColor=C['bg'],
-                paddingAll='24px',
-                contents=[
-                    TextComponent(text="▪️", size='xl', align='center', color=C['primary_soft']),
-                    TextComponent(
-                        text="تحليل الشخصية",
-                        size='xl',
-                        color=C['primary_soft'],
-                        weight='bold',
-                        align='center',
-                        margin='lg'
-                    ),
-                    TextComponent(
-                        text="اختر نوع التحليل",
-                        size='sm',
-                        color=C['text_muted'],
-                        align='center',
-                        margin='sm'
-                    ),
-                    BoxComponent(layout='vertical', margin='xl', contents=btns)
-                ]
-            )
-        )
-    )
-
-def flex_game_q(game, qi):
-    """سؤال في لعبة التحليل"""
-    qs = game.get('questions', [])
-    if qi >= len(qs): return None
-    
-    q = qs[qi]
-    title = game.get('title', 'تحليل')
-    total = len(qs)
-    progress = f"{qi + 1}/{total}"
-    
-    opts = []
-    for k, v in q.get('options', {}).items():
-        opts.append(ButtonComponent(
-            action=MessageAction(label=f"{k}. {v}", text=k),
-            style='secondary',
-            color=C['card_light'],
-            height='sm',
-            margin='sm'
-        ))
-    
-    return FlexSendMessage(
-        alt_text=f"▪️ {title}",
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                backgroundColor=C['bg'],
-                paddingAll='24px',
-                contents=[
-                    # الرأس
-                    BoxComponent(
-                        layout='horizontal',
-                        justifyContent='space-between',
-                        contents=[
-                            TextComponent(text=f"▪️ {title}", size='sm', color=C['primary_soft'], weight='bold'),
-                            TextComponent(text=progress, size='sm', color=C['text_muted'])
-                        ]
-                    ),
-                    # شريط التقدم
-                    BoxComponent(
-                        layout='horizontal',
+                        cornerRadius='24px',
+                        paddingAll='3px',
+                        borderWidth='2px',
+                        borderColor=C['green'],
                         margin='md',
                         contents=[
                             BoxComponent(
                                 layout='vertical',
-                                backgroundColor=C['primary'],
-                                height='3px',
-                                flex=qi + 1,
-                                cornerRadius='2px'
-                            ),
-                            BoxComponent(
-                                layout='vertical',
-                                backgroundColor=C['card'],
-                                height='3px',
-                                flex=total - qi - 1,
-                                cornerRadius='2px'
+                                backgroundColor=C['bg'],
+                                cornerRadius='22px',
+                                paddingAll='28px',
+                                contents=[
+                                    TextComponent(text="☁️", size='xxl', align='center', color=C['primary_soft']),
+                                    TextComponent(
+                                        text="نتيجة التحليل",
+                                        size='xl',
+                                        color=C['primary_soft'],
+                                        weight='bold',
+                                        align='center',
+                                        margin='lg'
+                                    ),
+                                    BoxComponent(layout='vertical', backgroundColor=C['primary'], height='3px', margin='xl', cornerRadius='2px'),
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=C['card'],
+                                        cornerRadius='20px',
+                                        paddingAll='28px',
+                                        margin='xl',
+                                        contents=[
+                                            TextComponent(
+                                                text=result,
+                                                size='lg',
+                                                color=C['text'],
+                                                wrap=True,
+                                                align='center',
+                                                lineSpacing='10px'
+                                            )
+                                        ]
+                                    ),
+                                    ButtonComponent(
+                                        action=MessageAction(label='تحليل جديد', text='تحليل'),
+                                        style='primary',
+                                        color=C['primary'],
+                                        height='md',
+                                        margin='xl'
+                                    )
+                                ]
                             )
                         ]
-                    ),
-                    # السؤال
-                    BoxComponent(
-                        layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='16px',
-                        paddingAll='20px',
-                        margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=q.get('question', ''),
-                                size='md',
-                                color=C['text'],
-                                wrap=True,
-                                align='center'
-                            )
-                        ]
-                    ),
-                    # الخيارات
-                    BoxComponent(layout='vertical', margin='xl', contents=opts)
-                ]
-            )
-        )
-    )
-
-def flex_result(result):
-    """نتيجة التحليل"""
-    return FlexSendMessage(
-        alt_text="▪️ النتيجة",
-        quick_reply=MENU,
-        contents=BubbleContainer(
-            direction='rtl',
-            body=BoxComponent(
-                layout='vertical',
-                backgroundColor=C['bg'],
-                paddingAll='24px',
-                contents=[
-                    TextComponent(text="▪️", size='xl', align='center', color=C['primary_soft']),
-                    TextComponent(
-                        text="نتيجة التحليل",
-                        size='xl',
-                        color=C['primary_soft'],
-                        weight='bold',
-                        align='center',
-                        margin='lg'
-                    ),
-                    BoxComponent(layout='vertical', backgroundColor=C['primary'], height='2px', margin='xl', cornerRadius='1px'),
-                    BoxComponent(
-                        layout='vertical',
-                        backgroundColor=C['card'],
-                        cornerRadius='16px',
-                        paddingAll='24px',
-                        margin='xl',
-                        contents=[
-                            TextComponent(
-                                text=result,
-                                size='md',
-                                color=C['text'],
-                                wrap=True,
-                                align='center',
-                                lineSpacing='10px'
-                            )
-                        ]
-                    ),
-                    ButtonComponent(
-                        action=MessageAction(label='تحليل جديد', text='تحليل'),
-                        style='primary',
-                        color=C['primary'],
-                        height='sm',
-                        margin='xl'
                     )
                 ]
             )
@@ -841,4 +573,419 @@ def handle_msg(event):
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port)', align='center', color=C['green']),
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=C['card'],
+                                        cornerRadius='20px',
+                                        paddingAll='28px',
+                                        margin='xl',
+                                        contents=[
+                                            TextComponent(
+                                                text=f'❝ {text} ❞',
+                                                size='lg',
+                                                color=C['text'],
+                                                wrap=True,
+                                                align='center',
+                                                lineSpacing='10px'
+                                            ),
+                                            BoxComponent(
+                                                layout='vertical',
+                                                backgroundColor=C['green'],
+                                                height='2px',
+                                                margin='xl',
+                                                cornerRadius='1px',
+                                                paddingStart='60px',
+                                                paddingEnd='60px'
+                                            ),
+                                            TextComponent(
+                                                text=f"— {author}",
+                                                size='md',
+                                                color=C['green'],
+                                                align='center',
+                                                margin='xl',
+                                                weight='bold'
+                                            )
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+    )
+
+def flex_riddle(r):
+    """رسالة اللغز - ستايل عصري"""
+    return FlexSendMessage(
+        alt_text="💡 لغز",
+        quick_reply=MENU,
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='0px',
+                contents=[
+                    # حاوية مع حدود مضيئة
+                    BoxComponent(
+                        layout='vertical',
+                        backgroundColor=C['card'],
+                        cornerRadius='24px',
+                        paddingAll='3px',
+                        borderWidth='2px',
+                        borderColor=C['primary'],
+                        margin='md',
+                        contents=[
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['bg'],
+                                cornerRadius='22px',
+                                paddingAll='28px',
+                                contents=[
+                                    # الرأس
+                                    BoxComponent(
+                                        layout='horizontal',
+                                        justifyContent='center',
+                                        alignItems='center',
+                                        contents=[
+                                            TextComponent(text="💡", size='xxl', flex=0),
+                                            TextComponent(
+                                                text="لغز",
+                                                size='xl',
+                                                color=C['primary'],
+                                                weight='bold',
+                                                margin='lg',
+                                                flex=0
+                                            )
+                                        ]
+                                    ),
+                                    # الخط الفاصل
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=C['primary'],
+                                        height='3px',
+                                        margin='xl',
+                                        cornerRadius='2px'
+                                    ),
+                                    # السؤال
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=C['card'],
+                                        cornerRadius='20px',
+                                        paddingAll='28px',
+                                        margin='xl',
+                                        contents=[
+                                            TextComponent(
+                                                text=r.get('question', ''),
+                                                size='lg',
+                                                color=C['text'],
+                                                wrap=True,
+                                                align='center',
+                                                lineSpacing='10px',
+                                                weight='bold'
+                                            )
+                                        ]
+                                    ),
+                                    # الأزرار
+                                    BoxComponent(
+                                        layout='horizontal',
+                                        margin='xl',
+                                        spacing='md',
+                                        contents=[
+                                            ButtonComponent(
+                                                action=MessageAction(label='💡 تلميح', text='لمح'),
+                                                style='secondary',
+                                                color=C['card_light'],
+                                                height='md',
+                                                flex=1
+                                            ),
+                                            ButtonComponent(
+                                                action=MessageAction(label='✓ الجواب', text='جاوب'),
+                                                style='primary',
+                                                color=C['primary'],
+                                                height='md',
+                                                flex=1
+                                            )
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+    )
+
+def flex_answer(text, is_hint=True):
+    """رسالة التلميح أو الجواب"""
+    title = "تلميح" if is_hint else "الجواب"
+    color = C['yellow'] if is_hint else C['green']
+    icon = "💡" if is_hint else "✓"
+    
+    return FlexSendMessage(
+        alt_text=f"{icon} {title}",
+        quick_reply=MENU,
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='0px',
+                contents=[
+                    BoxComponent(
+                        layout='vertical',
+                        backgroundColor=C['card'],
+                        cornerRadius='24px',
+                        paddingAll='3px',
+                        borderWidth='2px',
+                        borderColor=color,
+                        margin='md',
+                        contents=[
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['bg'],
+                                cornerRadius='22px',
+                                paddingAll='28px',
+                                contents=[
+                                    BoxComponent(
+                                        layout='horizontal',
+                                        justifyContent='center',
+                                        alignItems='center',
+                                        contents=[
+                                            TextComponent(text=icon, size='xxl', color=color, flex=0),
+                                            TextComponent(text=title, size='xl', color=color, weight='bold', margin='lg', flex=0)
+                                        ]
+                                    ),
+                                    BoxComponent(layout='vertical', backgroundColor=color, height='3px', margin='xl', cornerRadius='2px'),
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=C['card'],
+                                        cornerRadius='20px',
+                                        paddingAll='28px',
+                                        margin='xl',
+                                        contents=[
+                                            TextComponent(
+                                                text=text,
+                                                size='lg',
+                                                color=C['text'],
+                                                wrap=True,
+                                                align='center',
+                                                weight='bold'
+                                            )
+                                        ]
+                                    )
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+    )
+
+def flex_games():
+    """قائمة ألعاب التحليل"""
+    games = content.data.get('تحليل', [])
+    if not games: return None
+    
+    btns = []
+    for i, g in enumerate(games[:8], 1):
+        btns.append(BoxComponent(
+            layout='horizontal',
+            backgroundColor=C['card'],
+            cornerRadius='12px',
+            paddingAll='14px',
+            margin='sm',
+            action=MessageAction(text=str(i)),
+            contents=[
+                TextComponent(text=str(i), size='lg', color=C['primary'], weight='bold', flex=0),
+                TextComponent(
+                    text=g.get('title', f'تحليل {i}'),
+                    size='md',
+                    color=C['text'],
+                    flex=1,
+                    margin='xl'
+                )
+            ]
+        ))
+    
+    return FlexSendMessage(
+        alt_text="☁️ تحليل الشخصية",
+        quick_reply=MENU,
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='24px',
+                contents=[
+                    TextComponent(text="☁️", size='xxl', align='center', color=C['primary_soft']),
+                    TextComponent(
+                        text="تحليل الشخصية",
+                        size='xl',
+                        color=C['primary_soft'],
+                        weight='bold',
+                        align='center',
+                        margin='lg'
+                    ),
+                    TextComponent(
+                        text="اختر نوع التحليل",
+                        size='sm',
+                        color=C['text_muted'],
+                        align='center',
+                        margin='sm'
+                    ),
+                    BoxComponent(layout='vertical', margin='xl', contents=btns)
+                ]
+            )
+        )
+    )
+
+def flex_game_q(game, qi):
+    """سؤال في لعبة التحليل - ستايل عصري"""
+    qs = game.get('questions', [])
+    if qi >= len(qs): return None
+    
+    q = qs[qi]
+    title = game.get('title', 'تحليل')
+    total = len(qs)
+    progress = f"{qi + 1}/{total}"
+    
+    opts = []
+    for k, v in q.get('options', {}).items():
+        opts.append(ButtonComponent(
+            action=MessageAction(label=f"{k}. {v}", text=k),
+            style='secondary',
+            color=C['card_light'],
+            height='md',
+            margin='sm'
+        ))
+    
+    return FlexSendMessage(
+        alt_text=f"☁️ {title}",
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='0px',
+                contents=[
+                    # حاوية مع حدود مضيئة
+                    BoxComponent(
+                        layout='vertical',
+                        backgroundColor=C['card'],
+                        cornerRadius='24px',
+                        paddingAll='3px',
+                        borderWidth='2px',
+                        borderColor=C['primary'],
+                        margin='md',
+                        contents=[
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['bg'],
+                                cornerRadius='22px',
+                                paddingAll='24px',
+                                contents=[
+                                    # الرأس
+                                    BoxComponent(
+                                        layout='horizontal',
+                                        justifyContent='space-between',
+                                        contents=[
+                                            TextComponent(
+                                                text=f"☁️ {title}",
+                                                size='md',
+                                                color=C['primary'],
+                                                weight='bold'
+                                            ),
+                                            TextComponent(
+                                                text=progress,
+                                                size='md',
+                                                color=C['text_muted']
+                                            )
+                                        ]
+                                    ),
+                                    # شريط التقدم
+                                    BoxComponent(
+                                        layout='horizontal',
+                                        margin='lg',
+                                        backgroundColor=C['card'],
+                                        cornerRadius='10px',
+                                        height='6px',
+                                        contents=[
+                                            BoxComponent(
+                                                layout='vertical',
+                                                backgroundColor=C['primary'],
+                                                height='6px',
+                                                flex=qi + 1,
+                                                cornerRadius='10px'
+                                            ),
+                                            BoxComponent(
+                                                layout='vertical',
+                                                backgroundColor=C['card'],
+                                                height='6px',
+                                                flex=max(1, total - qi - 1),
+                                                cornerRadius='10px'
+                                            )
+                                        ]
+                                    ),
+                                    # السؤال
+                                    BoxComponent(
+                                        layout='vertical',
+                                        backgroundColor=C['card'],
+                                        cornerRadius='20px',
+                                        paddingAll='24px',
+                                        margin='xl',
+                                        contents=[
+                                            TextComponent(
+                                                text=q.get('question', ''),
+                                                size='lg',
+                                                color=C['text'],
+                                                wrap=True,
+                                                align='center',
+                                                lineSpacing='8px'
+                                            )
+                                        ]
+                                    ),
+                                    # الخيارات
+                                    BoxComponent(layout='vertical', margin='xl', contents=opts)
+                                ]
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+    )
+
+def flex_result(result):
+    """نتيجة التحليل"""
+    return FlexSendMessage(
+        alt_text="☁️ النتيجة",
+        quick_reply=MENU,
+        contents=BubbleContainer(
+            direction='rtl',
+            body=BoxComponent(
+                layout='vertical',
+                backgroundColor=C['bg'],
+                paddingAll='0px',
+                contents=[
+                    BoxComponent(
+                        layout='vertical',
+                        backgroundColor=C['card'],
+                        cornerRadius='24px',
+                        paddingAll='3px',
+                        borderWidth='2px',
+                        borderColor=C['primary'],
+                        margin='md',
+                        contents=[
+                            BoxComponent(
+                                layout='vertical',
+                                backgroundColor=C['bg'],
+                                cornerRadius='22px',
+                                paddingAll='28px',
+                                contents=[
+                                    TextComponent(text="☁️", size='xxl
