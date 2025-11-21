@@ -1,4 +1,4 @@
-import json, os, logging, random
+import json, os, logging, random, threading, time, requests
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -268,5 +268,19 @@ def handle_msg(ev):
         # تجاهل أي رسائل أخرى غير الأوامر المعروفة
     except Exception as e: logging.error(f"Err:{e}"); reply(ev.reply_token, TextSendMessage(text="حدث خطأ، حاول مرة أخرى"))
 
+# ===== Keep Alive =====
+import threading, time, requests
+
+def keep_alive():
+    url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("REPL_SLUG")
+    if url and not url.startswith("http"): url = f"https://{url}.onrender.com"
+    while True:
+        try:
+            if url: requests.get(f"{url}/health", timeout=5)
+            time.sleep(840)  # كل 14 دقيقة
+        except: pass
+
 if __name__=="__main__":
+    if os.getenv("RENDER_EXTERNAL_URL") or os.getenv("REPL_SLUG"):
+        threading.Thread(target=keep_alive, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.getenv("PORT",5000)))
