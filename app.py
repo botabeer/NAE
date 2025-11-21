@@ -332,6 +332,10 @@ def flex_simple(command_type, text):
     """رسالة بسيطة (سؤال، تحدي، إلخ)"""
     icon, title, color = COMMAND_INFO[command_type]
     
+    # التأكد من أن النص ليس فارغًا
+    if not text or not text.strip():
+        text = "المحتوى غير متوفر حالياً"
+    
     return FlexSendMessage(
         alt_text=f"{icon} {title}",
         quick_reply=QUICK_MENU,
@@ -379,7 +383,7 @@ def flex_simple(command_type, text):
                             margin='xl',
                             contents=[
                                 TextComponent(
-                                    text=text,
+                                    text=str(text).strip(),
                                     size='lg',
                                     color=COLORS['text'],
                                     wrap=True,
@@ -403,8 +407,14 @@ def flex_simple(command_type, text):
 
 def flex_quote(quote_data):
     """رسالة اقتباس"""
-    quote_text = quote_data.get('quote', '')
+    quote_text = quote_data.get('quote', 'اقتباس ملهم')
     author = quote_data.get('author', 'مجهول')
+    
+    # التأكد من صحة البيانات
+    if not quote_text or not quote_text.strip():
+        quote_text = "الحياة قصيرة، اجعلها ذات معنى"
+    if not author or not author.strip():
+        author = "مجهول"
     
     return FlexSendMessage(
         alt_text="✨ اقتباس",
@@ -437,7 +447,7 @@ def flex_quote(quote_data):
                             margin='xl',
                             contents=[
                                 TextComponent(
-                                    text=f"« {quote_text} »",
+                                    text=f"« {str(quote_text).strip()} »",
                                     size='lg',
                                     color=COLORS['text'],
                                     wrap=True,
@@ -452,7 +462,7 @@ def flex_quote(quote_data):
                             margin='lg',
                             contents=[
                                 TextComponent(
-                                    text=f"— {author}",
+                                    text=f"— {str(author).strip()}",
                                     size='md',
                                     color=COLORS['green'],
                                     weight='bold'
@@ -475,7 +485,11 @@ def flex_quote(quote_data):
 
 def flex_riddle(riddle):
     """رسالة اللغز"""
-    question = riddle.get('question', '')
+    question = riddle.get('question', 'لغز مثير للتفكير')
+    
+    # التأكد من صحة السؤال
+    if not question or not question.strip():
+        question = "ما هو الشيء الذي يكتب ولا يقرأ؟"
     
     return FlexSendMessage(
         alt_text="💡 لغز",
@@ -522,7 +536,7 @@ def flex_riddle(riddle):
                             margin='xl',
                             contents=[
                                 TextComponent(
-                                    text=question,
+                                    text=str(question).strip(),
                                     size='lg',
                                     color=COLORS['text'],
                                     wrap=True,
@@ -550,6 +564,10 @@ def flex_answer(text, is_hint):
     """رسالة الإجابة أو التلميح"""
     title = "💡 تلميح" if is_hint else "✅ الجواب"
     color = COLORS['yellow'] if is_hint else COLORS['green']
+    
+    # التأكد من صحة النص
+    if not text or not text.strip():
+        text = "معلومة مفيدة!" if is_hint else "الإجابة الصحيحة!"
     
     return FlexSendMessage(
         alt_text=title,
@@ -584,7 +602,7 @@ def flex_answer(text, is_hint):
                             margin='xl',
                             contents=[
                                 TextComponent(
-                                    text=text,
+                                    text=str(text).strip(),
                                     size='lg',
                                     color=COLORS['text'],
                                     wrap=True,
@@ -680,8 +698,62 @@ def flex_game_q(game, question_index):
         return None
     
     q = questions[question_index]
-    q_text = q.get('q', '')
+    q_text = q.get('q', 'سؤال مثير')
     options = q.get('options', {})
+    
+    # التأكد من صحة البيانات
+    if not q_text or not q_text.strip():
+        q_text = "ما هو اختيارك المفضل؟"
+    
+    # التأكد من وجود خيارات صحيحة
+    if not options or len(options) == 0:
+        options = {'أ': 'الخيار الأول', 'ب': 'الخيار الثاني', 'ج': 'الخيار الثالث'}
+    
+    # بناء قائمة الخيارات
+    option_boxes = []
+    for key, value in options.items():
+        if key and value and str(value).strip():  # التأكد من صحة البيانات
+            option_boxes.append(
+                BoxComponent(
+                    layout='horizontal',
+                    backgroundColor=COLORS['card'],
+                    cornerRadius='12px',
+                    paddingAll='14px',
+                    action=MessageAction(label=str(key), text=str(key)),
+                    contents=[
+                        TextComponent(
+                            text=str(key),
+                            size='lg',
+                            color=COLORS['primary'],
+                            weight='bold',
+                            flex=0
+                        ),
+                        TextComponent(
+                            text=str(value).strip(),
+                            size='md',
+                            color=COLORS['text'],
+                            margin='md',
+                            flex=1
+                        )
+                    ]
+                )
+            )
+    
+    # إذا لم تكن هناك خيارات صحيحة، أضف خيارات افتراضية
+    if len(option_boxes) == 0:
+        option_boxes = [
+            BoxComponent(
+                layout='horizontal',
+                backgroundColor=COLORS['card'],
+                cornerRadius='12px',
+                paddingAll='14px',
+                action=MessageAction(label='أ', text='أ'),
+                contents=[
+                    TextComponent(text='أ', size='lg', color=COLORS['primary'], weight='bold', flex=0),
+                    TextComponent(text='الخيار الأول', size='md', color=COLORS['text'], margin='md', flex=1)
+                ]
+            )
+        ]
     
     return FlexSendMessage(
         alt_text=f"السؤال {question_index + 1}",
@@ -714,7 +786,7 @@ def flex_game_q(game, question_index):
                             margin='lg',
                             contents=[
                                 TextComponent(
-                                    text=q_text,
+                                    text=str(q_text).strip(),
                                     size='lg',
                                     color=COLORS['text'],
                                     wrap=True,
@@ -728,32 +800,7 @@ def flex_game_q(game, question_index):
                             layout='vertical',
                             spacing='md',
                             margin='xl',
-                            contents=[
-                                BoxComponent(
-                                    layout='horizontal',
-                                    backgroundColor=COLORS['card'],
-                                    cornerRadius='12px',
-                                    paddingAll='14px',
-                                    action=MessageAction(label=key, text=key),
-                                    contents=[
-                                        TextComponent(
-                                            text=key,
-                                            size='lg',
-                                            color=COLORS['primary'],
-                                            weight='bold',
-                                            flex=0
-                                        ),
-                                        TextComponent(
-                                            text=value,
-                                            size='md',
-                                            color=COLORS['text'],
-                                            margin='md',
-                                            flex=1
-                                        )
-                                    ]
-                                )
-                                for key, value in options.items()
-                            ]
+                            contents=option_boxes
                         )
                     ])
                 ]
@@ -793,10 +840,18 @@ def flex_result(result):
     """عرض النتيجة"""
     emoji = result.get('emoji', '✨')
     title = result.get('title', 'نتيجتك')
-    text = result.get('text', '')
+    text = result.get('text', 'نتيجة مميزة!')
+    
+    # التأكد من صحة البيانات
+    if not emoji or not emoji.strip():
+        emoji = '✨'
+    if not title or not title.strip():
+        title = 'نتيجتك'
+    if not text or not text.strip():
+        text = 'نتيجة رائعة ومميزة!'
     
     return FlexSendMessage(
-        alt_text="💜 نتيجتك",
+        alt_text="🎉 نتيجتك",
         quick_reply=QUICK_MENU,
         contents=BubbleContainer(
             direction='rtl',
@@ -812,11 +867,11 @@ def flex_result(result):
                             alignItems='center',
                             contents=[
                                 TextComponent(
-                                    text=emoji,
+                                    text=str(emoji).strip(),
                                     size='xxl'
                                 ),
                                 TextComponent(
-                                    text=" نتيجتك ",
+                                    text="🎉 نتيجتك 🎉",
                                     size='md',
                                     color=COLORS['text_dim'],
                                     margin='md'
@@ -833,7 +888,7 @@ def flex_result(result):
                             alignItems='center',
                             contents=[
                                 TextComponent(
-                                    text=title,
+                                    text=str(title).strip(),
                                     size='xl',
                                     color=COLORS['text'],
                                     weight='bold',
@@ -850,7 +905,7 @@ def flex_result(result):
                             margin='lg',
                             contents=[
                                 TextComponent(
-                                    text=text,
+                                    text=str(text).strip(),
                                     size='md',
                                     color=COLORS['text'],
                                     wrap=True,
