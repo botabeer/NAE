@@ -84,22 +84,10 @@ def hdr(t, i=""):
 
 # ===== نافذة المساعدة =====
 def help_flex():
-    sec = [
-        ("سؤال","أسئلة متنوعة"),
-        ("منشن","أسئلة منشن"),
-        ("اعتراف","اعترافات جريئة"),
-        ("تحدي","تحديات ممتعة"),
-        ("موقف","مواقف للنقاش"),
-        ("اقتباسات","حكم واقتباسات"),
-        ("لغز","ألغاز وتلميحات"),
-        ("تحليل","تحليل الشخصية")
-    ]
+    cmds = ["سؤال", "منشن", "اعتراف", "تحدي", "موقف", "اقتباسات", "لغز", "تحليل"]
     items = [
-        BoxComponent(
-            layout='horizontal', paddingAll='10px', backgroundColor=C['card'], cornerRadius='10px', spacing='md',
-            contents=[TextComponent(text=i, size='sm', color=C['acc'], flex=0),
-                      TextComponent(text=d, size='sm', color=C['txt2'], flex=1)]
-        ) for i,d in sec
+        TextComponent(text=f"• {c}", size='md', color=C['txt'], margin='sm')
+        for c in cmds
     ]
     return FlexSendMessage(
         alt_text="مساعدة",
@@ -109,9 +97,16 @@ def help_flex():
                 layout='vertical', backgroundColor=C['bg'], paddingAll='20px',
                 contents=[
                     hdr("بوت عناد المالكي"),
-                    TextComponent(text="اختر من الأزرار أدناه", size='xs', color=C['txt2'], align='center', margin='md'),
                     SeparatorComponent(margin='lg', color=C['bdr']),
-                    BoxComponent(layout='vertical', margin='lg', spacing='sm', contents=items)
+                    TextComponent(text="أوامر البوت:", weight='bold', size='lg', color=C['acc'], margin='lg'),
+                    BoxComponent(layout='vertical', margin='md', spacing='xs', contents=items),
+                    SeparatorComponent(margin='lg', color=C['bdr']),
+                    BoxComponent(
+                        layout='vertical', margin='md', paddingAll='12px', backgroundColor=C['glass'], cornerRadius='8px',
+                        contents=[TextComponent(text="💡 ملاحظة: تقدر تستخدم البوت بالخاص والقروبات", size='sm', color=C['txt2'], wrap=True, align='center')]
+                    ),
+                    SeparatorComponent(margin='lg', color=C['bdr']),
+                    TextComponent(text="تم إنشاء هذا البوت بواسطة عبير الدوسري ©️ 2025", size='xxs', color=C['txt2'], align='center', margin='md')
                 ]
             )
         )
@@ -139,12 +134,15 @@ def games_flex(g):
 
 # ===== نافذة الإجابة =====
 def ans_flex(a, t):
-    i, cl = ("جاوب", C['ok']) if "جاوب" in t else ("لمح", C['sec'])
+    if "جاوب" in t:
+        i, cl = ("جاوب", C['ok'])
+    else:
+        i, cl = ("لمح", C['sec'])
     return FlexSendMessage(alt_text=t,
         contents=BubbleContainer(direction='rtl',
             body=BoxComponent(layout='vertical', backgroundColor=C['bg'], paddingAll='24px',
                 contents=[BoxComponent(layout='vertical', paddingAll='16px', backgroundColor=C['glass'], cornerRadius='16px',
-                                       contents=[TextComponent(text=f"{i} {t}", weight='bold', size='xl', color=cl, align='center')]),
+                                       contents=[TextComponent(text=i, weight='bold', size='xl', color=cl, align='center')]),
                           BoxComponent(layout='vertical', margin='xl', paddingAll='24px', backgroundColor=C['card'], cornerRadius='16px',
                                        contents=[TextComponent(text=a, size='xl', color=C['txt'], wrap=True, align='center', weight='bold')])])))
 
@@ -192,7 +190,6 @@ def find_cmd(t):
 
 def reply(tk, msg):
     try:
-        if isinstance(msg, TextSendMessage) and not msg.quick_reply: msg.quick_reply = menu()
         line.reply_message(tk, msg)
     except Exception as e: logging.error(f"Err:{e}")
 
@@ -216,7 +213,9 @@ def handle_msg(ev):
     uid, txt = ev.source.user_id, ev.message.text.strip()
     tl = txt.lower()
     try:
-        if tl=="مساعدة": reply(ev.reply_token, help_flex()); return
+        if tl=="مساعدة": 
+            reply(ev.reply_token, [help_flex(), TextSendMessage(text="اختر من الأزرار:", quick_reply=menu())])
+            return
         
         cmd = find_cmd(txt)
         if cmd:
@@ -241,11 +240,9 @@ def handle_msg(ev):
         
         if tl=="لمح":
             if uid in rdl_st: reply(ev.reply_token, ans_flex(rdl_st[uid].get('hint','لا يوجد'),"لمح"))
-            else: reply(ev.reply_token, TextSendMessage(text="اطلب لغز أولاً"))
             return
         if tl=="جاوب":
             if uid in rdl_st: r = rdl_st.pop(uid); reply(ev.reply_token, ans_flex(r['answer'], "جاوب"))
-            else: reply(ev.reply_token, TextSendMessage(text="اطلب لغز أولاً"))
             return
         
         if tl in ["تحليل","تحليل شخصية","شخصية"]:
@@ -268,7 +265,7 @@ def handle_msg(ev):
                 else: reply(ev.reply_token, gr_flex(calc_res(st["ans"], st["gi"]))); del gm_st[uid]
                 return
         
-        reply(ev.reply_token, TextSendMessage(text="اكتب 'مساعدة' لعرض الأوامر"))
+        # تجاهل أي رسائل أخرى غير الأوامر المعروفة
     except Exception as e: logging.error(f"Err:{e}"); reply(ev.reply_token, TextSendMessage(text="حدث خطأ، حاول مرة أخرى"))
 
 if __name__=="__main__":
