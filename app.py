@@ -108,7 +108,7 @@ def create_games_list_flex(games):
                     style='primary', color=C['pri'], height='md', margin='sm') 
                 for i, g in enumerate(games[:10], 1)]),
             FlexSeparator(margin='lg', color=C['border']),
-            FlexText(text='عبير الدوسري © 2025', size='xxs', color=C['txt2'], align='center', margin='md')])))
+            FlexText(text='تم إنشاء هذا البوت بواسطة عبير الدوسري @ 2025', size='xxs', color=C['txt2'], align='center', margin='md')])))
 
 def create_game_question_flex(title, q, progress):
     return FlexMessage(alt_text=title, contents=FlexBubble(direction='rtl',
