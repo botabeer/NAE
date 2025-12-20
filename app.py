@@ -16,8 +16,18 @@ app = Flask(__name__)
 configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
-C = {'bg': '#1a1a1a', 'card': '#2d2d2d', 'glass': '#252525', 'pri': '#9b59b6',
-     'sec': '#8e44ad', 'acc': '#b388ff', 'txt': '#e0e0e0', 'txt2': '#a0a0a0', 'border': '#3d3d3d'}
+# === Luxury Black × Purple Theme ===
+C = {
+    'bg':     '#0B0B0F',   # خلفية عامة (أسود عميق)
+    'card':   '#151520',   # كروت المحتوى
+    'glass':  '#1B1B2A',   # هيدر / صناديق بارزة
+    'pri':    '#7C3AED',   # بنفسجي ملكي (الأزرار)
+    'sec':    '#5B21B6',   # بنفسجي أغمق
+    'acc':    '#A78BFA',   # بنفسجي فاتح للعناوين
+    'txt':    '#FFFFFF',   # نص أساسي
+    'txt2':   '#C7C7D1',   # نص ثانوي
+    'border': '#2A2A3D'    # فواصل وحدود
+}
 
 class ContentManager:
     def __init__(self):
