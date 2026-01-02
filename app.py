@@ -1,27 +1,44 @@
+# -*- coding: utf-8 -*-
 import json, os, logging, random, threading, time, requests
 from flask import Flask, request, abort
-from linebot.v3.webhook import WebhookHandler
+
+from linebot.v3.webhooks import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
-    Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage,
-    FlexMessage, FlexBubble, FlexBox, FlexText, FlexButton, FlexSeparator,
-    MessageAction, QuickReply, QuickReplyItem
+    Configuration, ApiClient, MessagingApi,
+    ReplyMessageRequest, TextMessage,
+    FlexMessage, FlexContainer,
+    QuickReply, QuickReplyItem,
+    MessageAction
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
+# ================= LOGGING =================
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# ================= APP =================
 app = Flask(__name__)
 configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
+# ================= RENDER THEME =================
 C = {
-    'bg': '#0B0B0F', 'card': '#151520', 'glass': '#1B1B2A',
-    'pri': '#7C3AED', 'sec': '#5B21B6', 'acc': '#A78BFA',
-    'txt': '#FFFFFF', 'txt2': '#C7C7D1', 'border': '#2A2A3D'
+    'bg': '#FFFFFF',
+    'card': '#F9FAFB',
+    'glass': '#F3F0FF',
+
+    'pri': '#7C3AED',
+    'sec': '#EDE9FE',
+    'acc': '#6D28D9',
+
+    'txt': '#111827',
+    'txt2': '#6B7280',
+
+    'border': '#E5E7EB'
 }
 
+# ================= CONTENT MANAGER =================
 class ContentManager:
     def __init__(self):
         self.files = {}
@@ -40,18 +57,18 @@ class ContentManager:
             with open(f, 'r', encoding='utf-8') as file:
                 return [l.strip() for l in file if l.strip()]
         except Exception as e:
-            logger.error(f"Error loading {f}: {e}")
+            logger.error(e)
             return []
 
     def load_json(self, f):
         if not os.path.exists(f):
-            return [] if f.endswith('s.json') else {}
+            return {}
         try:
             with open(f, 'r', encoding='utf-8') as file:
                 return json.load(file)
         except Exception as e:
-            logger.error(f"Error loading {f}: {e}")
-            return [] if f.endswith('s.json') else {}
+            logger.error(e)
+            return {}
 
     def initialize(self):
         self.files = {
@@ -63,265 +80,278 @@ class ContentManager:
         self.situations = self.load_lines("situations.txt")
         self.quotes = self.load_json("quotes.json")
         self.results = self.load_json("detailed_results.json")
-        g = self.load_json("personality_games.json")
-        self.games = [g[k] for k in sorted(g.keys())] if isinstance(g, dict) else []
-        self.used = {k: [] for k in list(self.files.keys()) + ["منشن", "اقتباس", "موقف"]}
-        logger.info("Content initialized successfully")
 
-    def get_random_index(self, key, max_count):
-        if max_count == 0:
-            return 0
-        if len(self.used.get(key, [])) >= max_count:
-            self.used[key] = []
-        available = [i for i in range(max_count) if i not in self.used.get(key, [])]
-        idx = random.choice(available) if available else random.randint(0, max_count - 1)
-        if key not in self.used:
-            self.used[key] = []
-        self.used[key].append(idx)
-        return idx
+        games = self.load_json("personality_games.json")
+        self.games = [games[k] for k in sorted(games.keys())] if isinstance(games, dict) else []
 
-    def get_content(self, cat):
-        items = self.files.get(cat, [])
-        return items[self.get_random_index(cat, len(items))] if items else None
+        self.used = {k: [] for k in ["سؤال", "تحدي", "اعتراف", "منشن", "موقف", "اقتباس"]}
+        logger.info("Content initialized")
 
-    def get_mention(self):
-        return self.mention[self.get_random_index("منشن", len(self.mention))] if self.mention else None
-
-    def get_situation(self):
-        return self.situations[self.get_random_index("موقف", len(self.situations))] if self.situations else None
-
-    def get_quote(self):
-        return self.quotes[self.get_random_index("اقتباس", len(self.quotes))] if self.quotes else None
+    def get_random(self, key, data):
+        if not data:
+            return None
+        used = self.used.get(key, [])
+        if len(used) >= len(data):
+            used.clear()
+        idx = random.choice([i for i in range(len(data)) if i not in used])
+        used.append(idx)
+        self.used[key] = used
+        return data[idx]
 
 cm = ContentManager()
 cm.initialize()
 
+# ================= QUICK MENU =================
 def create_menu():
     return QuickReply(items=[
-        QuickReplyItem(action=MessageAction(label=l, text=t))
-        for l, t in [("سؤال", "سؤال"), ("منشن", "منشن"), ("اعتراف", "اعتراف"),
-                     ("تحدي", "تحدي"), ("موقف", "موقف"), ("اقتباس", "اقتباس"), ("تحليل", "تحليل")]
+        QuickReplyItem(action=MessageAction(label=l, text=l))
+        for l in ["سؤال", "منشن", "اعتراف", "تحدي", "موقف", "اقتباس", "تحليل"]
     ])
 
-def create_games_list_flex(games):
-    return FlexMessage(alt_text="تحليل الشخصية", contents=FlexBubble(
-        direction='rtl',
-        body=FlexBox(layout='vertical', background_color=C['bg'], padding_all='24px', contents=[
-            FlexBox(layout='vertical', background_color=C['glass'], corner_radius='12px',
-                    padding_all='16px', margin='none', contents=[
-                FlexText(text='بوت عناد المالكي', weight='bold', size='lg', color=C['acc'], align='center'),
-                FlexText(text='اختر تحليل الشخصية', size='sm', color=C['txt2'], align='center', margin='sm')
-            ]),
-            FlexSeparator(margin='lg', color=C['border']),
-            FlexBox(layout='vertical', margin='lg', spacing='sm', contents=[
-                FlexButton(
-                    action=MessageAction(label=f"{i}. {g.get('title', f'تحليل {i}')}", text=str(i)),
-                    style='primary', color=C['pri'], height='md', margin='sm'
-                )
-                for i, g in enumerate(games[:10], 1)
-            ]),
-            FlexSeparator(margin='lg', color=C['border']),
-            FlexText(text='عبير الدوسري 2025', size='xxs', color=C['txt2'], align='center', margin='md')
-        ])
-    ))
+# ================= FLEX BUILDERS =================
+def flex_container(body):
+    return FlexMessage(
+        alt_text="Bot",
+        contents=FlexContainer.from_dict({
+            "type": "bubble",
+            "direction": "rtl",
+            "body": body
+        })
+    )
 
-def create_game_question_flex(title, q, progress):
-    return FlexMessage(alt_text=title, contents=FlexBubble(
-        direction='rtl',
-        body=FlexBox(layout='vertical', background_color=C['bg'], padding_all='24px', contents=[
-            FlexBox(layout='horizontal', margin='none', contents=[
-                FlexText(text=title, weight='bold', size='lg', color=C['acc'], flex=1),
-                FlexText(text=progress, size='sm', color=C['txt2'], flex=0, align='end')
-            ]),
-            FlexSeparator(margin='md', color=C['border']),
-            FlexBox(layout='vertical', margin='lg', padding_all='16px', background_color=C['card'],
-                    corner_radius='12px', contents=[
-                FlexText(text=q['question'], size='md', color=C['txt'], wrap=True, weight='bold')
-            ]),
-            FlexBox(layout='vertical', margin='lg', spacing='sm', contents=[
-                FlexButton(
-                    action=MessageAction(label=f"{k}. {v}", text=k),
-                    style='primary', color=C['pri'], height='md', margin='sm'
-                )
-                for k, v in q['options'].items()
-            ])
-        ])
-    ))
+def games_list_flex():
+    return flex_container({
+        "type": "box",
+        "layout": "vertical",
+        "backgroundColor": C['bg'],
+        "paddingAll": "20px",
+        "contents": [
+            {
+                "type": "text",
+                "text": "تحليل الشخصية",
+                "weight": "bold",
+                "size": "md",
+                "color": C['acc'],
+                "align": "center"
+            },
+            {
+                "type": "separator",
+                "margin": "md",
+                "color": C['border']
+            }
+        ] + [
+            {
+                "type": "button",
+                "style": "primary",
+                "color": C['pri'],
+                "margin": "sm",
+                "action": {
+                    "type": "message",
+                    "label": f"{i+1}. {g.get('title','تحليل')}",
+                    "text": str(i+1)
+                }
+            } for i, g in enumerate(cm.games)
+        ]
+    })
 
-def create_game_result_flex(result):
-    return FlexMessage(alt_text="النتيجة", contents=FlexBubble(
-        direction='rtl',
-        body=FlexBox(layout='vertical', background_color=C['bg'], padding_all='24px', contents=[
-            FlexBox(layout='vertical', background_color=C['glass'], corner_radius='12px',
-                    padding_all='16px', margin='none', contents=[
-                FlexText(text='بوت عناد المالكي', weight='bold', size='md', color=C['acc'], align='center'),
-                FlexText(text='نتيجة التحليل', size='xl', color=C['txt'], align='center',
-                         weight='bold', margin='sm')
-            ]),
-            FlexSeparator(margin='lg', color=C['border']),
-            FlexBox(layout='vertical', margin='lg', padding_all='20px', background_color=C['card'],
-                    corner_radius='12px', contents=[
-                FlexText(text=result, size='md', color=C['txt'], wrap=True, line_spacing='8px')
-            ]),
-            FlexBox(layout='vertical', margin='xl', contents=[
-                FlexButton(action=MessageAction(label='تحليل جديد', text='تحليل'),
-                           style='primary', color=C['pri'], height='md')
-            ]),
-            FlexSeparator(margin='lg', color=C['border']),
-            FlexText(text='عبير الدوسري 2025', size='xxs', color=C['txt2'], align='center', margin='md')
-        ])
-    ))
+def question_flex(title, q, progress):
+    return flex_container({
+        "type": "box",
+        "layout": "vertical",
+        "backgroundColor": C['bg'],
+        "paddingAll": "20px",
+        "contents": [
+            {
+                "type": "text",
+                "text": f"{title} • {progress}",
+                "weight": "bold",
+                "color": C['acc']
+            },
+            {
+                "type": "box",
+                "layout": "vertical",
+                "margin": "md",
+                "paddingAll": "20px",
+                "backgroundColor": C['glass'],
+                "cornerRadius": "16px",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": q['question'],
+                        "wrap": True,
+                        "color": C['txt']
+                    }
+                ]
+            }
+        ] + [
+            {
+                "type": "button",
+                "style": "secondary",
+                "color": C['sec'],
+                "margin": "sm",
+                "action": {
+                    "type": "message",
+                    "label": f"{k}. {v}",
+                    "text": k
+                }
+            } for k, v in q['options'].items()
+        ]
+    })
 
-COMMANDS = {
-    "سؤال": ["سؤال", "سوال"],
-    "تحدي": ["تحدي"],
-    "اعتراف": ["اعتراف"],
-    "منشن": ["منشن"],
-    "موقف": ["موقف"],
-    "اقتباس": ["اقتباس", "اقتباسات", "حكمة"],
-    "تحليل": ["تحليل", "شخصية"]
-}
+def result_flex(text):
+    return flex_container({
+        "type": "box",
+        "layout": "vertical",
+        "backgroundColor": C['bg'],
+        "paddingAll": "20px",
+        "contents": [
+            {
+                "type": "text",
+                "text": "نتيجة التحليل",
+                "weight": "bold",
+                "size": "lg",
+                "color": C['acc'],
+                "align": "center"
+            },
+            {
+                "type": "box",
+                "layout": "vertical",
+                "margin": "md",
+                "paddingAll": "20px",
+                "backgroundColor": C['glass'],
+                "cornerRadius": "16px",
+                "contents": [
+                    {
+                        "type": "text",
+                        "text": text,
+                        "wrap": True,
+                        "color": C['txt']
+                    }
+                ]
+            },
+            {
+                "type": "button",
+                "style": "primary",
+                "color": C['pri'],
+                "margin": "lg",
+                "action": {
+                    "type": "message",
+                    "label": "تحليل جديد",
+                    "text": "تحليل"
+                }
+            }
+        ]
+    })
 
-def find_command(text):
-    text = text.lower().strip()
-    for cmd, vars in COMMANDS.items():
-        if text in [v.lower() for v in vars]:
-            return cmd
-    return None
-
+# ================= HELPERS =================
 def send_reply(token, msgs):
-    try:
-        if isinstance(msgs[-1], TextMessage):
-            msgs[-1].quick_reply = create_menu()
-        with ApiClient(configuration) as api_client:
-            MessagingApi(api_client).reply_message(
-                ReplyMessageRequest(reply_token=token, messages=msgs)
-            )
-    except Exception as e:
-        logger.error(f"Error sending reply: {e}")
+    msgs[-1].quick_reply = create_menu()
+    with ApiClient(configuration) as api:
+        MessagingApi(api).reply_message(
+            ReplyMessageRequest(reply_token=token, messages=msgs)
+        )
 
 def calculate_result(answers, idx):
     counts = {"أ": 0, "ب": 0, "ج": 0}
     for a in answers:
-        if a in counts:
-            counts[a] += 1
-    game_key = f"لعبة{idx + 1}"
-    max_answer = max(counts, key=counts.get)
-    return cm.results.get(game_key, {}).get(max_answer, "شخصيتك فريدة")
+        counts[a] += 1
+    key = max(counts, key=counts.get)
+    return cm.results.get(f"لعبة{idx+1}", {}).get(key, "شخصيتك مميزة ")
 
-@app.route("/", methods=["GET"])
+# ================= ROUTES =================
+@app.route("/")
 def home():
-    return "LINE Bot is running", 200
+    return "LINE BOT OK"
 
-@app.route("/health", methods=["GET"])
+@app.route("/health")
 def health():
-    return {"status": "ok", "timestamp": time.time()}, 200
+    return {"ok": True}
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    signature = request.headers.get("X-Line-Signature", "")
+    signature = request.headers.get("X-Line-Signature")
     body = request.get_data(as_text=True)
-    
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        logger.error("Invalid signature")
         abort(400)
-    except Exception as e:
-        logger.error(f"Error in callback: {e}")
-        abort(500)
-    
     return "OK"
 
+# ================= HANDLER =================
 @handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
-    user_id = event.source.user_id
+def handle(event):
+    uid = event.source.user_id
     text = event.message.text.strip()
-    text_lower = text.lower()
-    
-    try:
-        if user_id in cm.game_state:
-            answer_map = {
-                "1": "أ", "2": "ب", "3": "ج",
-                "a": "أ", "b": "ب", "c": "ج",
-                "أ": "أ", "ب": "ب", "ج": "ج"
-            }
-            answer = answer_map.get(text_lower)
-            
-            if answer:
-                state = cm.game_state[user_id]
-                state["answers"].append(answer)
-                game = cm.games[state["game_index"]]
-                state["question_index"] += 1
-                
-                if state["question_index"] < len(game["questions"]):
-                    send_reply(event.reply_token, [create_game_question_flex(
-                        game.get('title', 'تحليل'),
-                        game["questions"][state["question_index"]],
-                        f"{state['question_index'] + 1}/{len(game['questions'])}"
-                    )])
-                else:
-                    result = calculate_result(state["answers"], state["game_index"])
-                    send_reply(event.reply_token, [create_game_result_flex(result)])
-                    del cm.game_state[user_id]
-            return
-        
-        if text.isdigit():
-            num = int(text)
-            if 1 <= num <= len(cm.games):
-                cm.game_state[user_id] = {
-                    "game_index": num - 1,
-                    "question_index": 0,
-                    "answers": []
-                }
-                game = cm.games[num - 1]
-                send_reply(event.reply_token, [create_game_question_flex(
-                    game.get('title', f'تحليل {num}'),
-                    game["questions"][0],
-                    f"1/{len(game['questions'])}"
-                )])
-            return
-        
-        cmd = find_command(text)
-        if cmd:
-            if cmd == "اقتباس":
-                q = cm.get_quote()
-                msg = f"{q.get('text', '')}\n\n{q.get('author', 'مجهول')}" if q else "لا توجد اقتباسات"
-                send_reply(event.reply_token, [TextMessage(text=msg)])
-            elif cmd == "منشن":
-                q = cm.get_mention()
-                send_reply(event.reply_token, [TextMessage(text=q if q else "لا توجد أسئلة")])
-            elif cmd == "موقف":
-                s = cm.get_situation()
-                send_reply(event.reply_token, [TextMessage(text=s if s else "لا توجد مواقف")])
-            elif cmd == "تحليل":
-                if cm.games:
-                    send_reply(event.reply_token, [create_games_list_flex(cm.games)])
-                else:
-                    send_reply(event.reply_token, [TextMessage(text="لا توجد تحليلات")])
-            else:
-                c = cm.get_content(cmd)
-                send_reply(event.reply_token, [TextMessage(text=c if c else "لا توجد بيانات")])
-    except Exception as e:
-        logger.error(f"Error handling message: {e}")
 
+    if uid in cm.game_state:
+        ans = text if text in ["أ", "ب", "ج"] else None
+        if not ans:
+            return
+        state = cm.game_state[uid]
+        state["answers"].append(ans)
+        game = cm.games[state["game"]]
+        state["q"] += 1
+        if state["q"] < len(game["questions"]):
+            send_reply(event.reply_token, [
+                question_flex(game["title"], game["questions"][state["q"]],
+                              f"{state['q']+1}/{len(game['questions'])}")
+            ])
+        else:
+            res = calculate_result(state["answers"], state["game"])
+            send_reply(event.reply_token, [result_flex(res)])
+            del cm.game_state[uid]
+        return
+
+    if text.isdigit():
+        idx = int(text) - 1
+        if 0 <= idx < len(cm.games):
+            cm.game_state[uid] = {"game": idx, "q": 0, "answers": []}
+            g = cm.games[idx]
+            send_reply(event.reply_token, [
+                question_flex(g["title"], g["questions"][0],
+                              f"1/{len(g['questions'])}")
+            ])
+        return
+
+    if text == "تحليل":
+        send_reply(event.reply_token, [games_list_flex()])
+        return
+
+    mapping = {
+        "سؤال": "سؤال",
+        "تحدي": "تحدي",
+        "اعتراف": "اعتراف",
+        "منشن": "منشن",
+        "موقف": "موقف",
+        "اقتباس": "اقتباس"
+    }
+
+    if text in mapping:
+        if text == "اقتباس":
+            q = cm.get_random("اقتباس", cm.quotes)
+            msg = f"{q.get('text','')}\n\n{q.get('author','')}" if q else "—"
+        elif text == "منشن":
+            msg = cm.get_random("منشن", cm.mention)
+        elif text == "موقف":
+            msg = cm.get_random("موقف", cm.situations)
+        else:
+            msg = cm.get_random(text, cm.files.get(text))
+        send_reply(event.reply_token, [TextMessage(text=msg or "—")])
+
+# ================= KEEP ALIVE =================
 def keep_alive():
     url = os.getenv("RENDER_EXTERNAL_URL")
     if url and not url.startswith("http"):
-        url = f"https://{url}"
-    
+        url = "https://" + url
     while True:
         try:
             if url:
-                requests.get(f"{url}/health", timeout=5)
-                logger.info("Keep-alive ping successful")
-        except Exception as e:
-            logger.error(f"Keep-alive error: {e}")
+                requests.get(url + "/health", timeout=5)
+        except:
+            pass
         time.sleep(600)
 
 if __name__ == "__main__":
     if os.getenv("RENDER_EXTERNAL_URL"):
         threading.Thread(target=keep_alive, daemon=True).start()
-    
-    port = int(os.getenv("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, threaded=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
