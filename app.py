@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json, os, logging, random, threading, time, requests
 from flask import Flask, request, abort
 
@@ -15,21 +16,23 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+app  = Flask(__name__)
 configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"))
 handler       = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 # ═══════════════════════════ THEME ═══════════════════════════════════
-# Monochrome — elegant, clean, easy on the eyes
+# Warm neutrals — elegant, refined, easy on the eyes
 C = {
-    'white':   '#FFFFFF',
-    'off':     '#F8F8F8',
-    'light':   '#EFEFEF',
-    'mid':     '#C8C8C8',
-    'soft':    '#888888',
-    'dark':    '#444444',
-    'black':   '#111111',
-    'border':  '#E0E0E0',
+    'bg':       '#FAFAF8',   # warm off-white
+    'card':     '#F3F2EF',   # warm light grey
+    'stroke':   '#E8E6E1',   # warm border
+    'muted':    '#D4D0C8',   # muted warm
+    'subtle':   '#9E9A92',   # subtle text
+    'body':     '#4A4741',   # body text
+    'strong':   '#1C1A17',   # strong text
+    'btn_bg':   '#ECEAE5',   # button background — soft, not harsh
+    'btn_dark': '#2C2A27',   # dark button fill — warmer than pure black
+    'accent':   '#6B6560',   # accent
 }
 
 # ═══════════════════════════ CONTENT MANAGER ═════════════════════════
@@ -66,16 +69,14 @@ class ContentManager:
         d = default if default is not None else {}
         if not os.path.exists(f): logger.warning(f"Missing: {f}"); return d
         try:
-            with open(f, encoding='utf-8') as fh:
-                return json.load(fh)
+            with open(f, encoding='utf-8') as fh: return json.load(fh)
         except Exception as e:
             logger.error(f"{f}: {e}"); return d
 
     def _stories(self, f):
         if not os.path.exists(f): logger.warning(f"Missing: {f}"); return []
         try:
-            with open(f, encoding='utf-8') as fh:
-                raw = fh.read()
+            with open(f, encoding='utf-8') as fh: raw = fh.read()
             return [p.strip() for p in raw.split("───") if p.strip()]
         except Exception as e:
             logger.error(f"{f}: {e}"); return []
@@ -107,7 +108,6 @@ class ContentManager:
         keys = ["سؤال","تحدي","اعتراف","منشن","موقف","اقتباس","لغز","دين",
                 "قصة","فلسفة","لو كنت","أيهما أصعب","أنا لم","تحفيز"]
         self.used = {k: [] for k in keys}
-
         logger.info(f"games={len(self.games)} riddles={len(self.riddles)} "
                     f"religion={len(self.religion)} stories={len(self.stories)}")
 
@@ -127,124 +127,147 @@ cm.initialize()
 MENU_A = ["سؤال","منشن","اعتراف","تحدي","موقف","اقتباس",
           "تحليل","لغز","دين","قصة","فلسفة","لو كنت","المزيد"]
 MENU_B = ["أيهما أصعب","أنا لم","تحفيز",
-          "سؤال","منشن","تحدي","موقف","لغز","دين","تحليل","مساعدة","بداية","رجوع"]
+          "سؤال","منشن","تحدي","لغز","دين","تحليل","مساعدة","بداية","موقف","رجوع"]
 
 def make_menu(secondary=False):
     labels = MENU_B if secondary else MENU_A
     return QuickReply(items=[
-        QuickReplyItem(action=MessageAction(label=l, text=l))
-        for l in labels
+        QuickReplyItem(action=MessageAction(label=l, text=l)) for l in labels
     ])
 
-# ═══════════════════════════ FLEX HELPERS ════════════════════════════
-def bubble(body_contents, footer=None):
-    d = {
-        "type": "bubble",
-        "direction": "rtl",
-        "body": {
-            "type": "box", "layout": "vertical",
-            "backgroundColor": C['white'],
-            "paddingAll": "20px",
-            "contents": body_contents
-        }
+# ═══════════════════════════ FLEX CORE ═══════════════════════════════
+def flex_msg(body_contents, footer_contents=None):
+    body = {
+        "type": "box", "layout": "vertical",
+        "backgroundColor": C['bg'],
+        "paddingAll": "24px",
+        "contents": body_contents
     }
-    if footer:
+    d = {"type": "bubble", "direction": "rtl", "body": body}
+    if footer_contents:
         d["footer"] = {
             "type": "box", "layout": "vertical",
-            "backgroundColor": C['off'],
-            "paddingAll": "12px",
-            "contents": footer
+            "backgroundColor": C['card'],
+            "paddingAll": "14px",
+            "contents": footer_contents
         }
     return FlexMessage(
         alt_text="بوت عناد المالكي",
         contents=FlexContainer.from_dict(d)
     )
 
-def box_v(contents, **kw):
+def vbox(contents, **kw):
     return {"type": "box", "layout": "vertical", "contents": contents, **kw}
 
-def box_h(contents, **kw):
+def hbox(contents, **kw):
     return {"type": "box", "layout": "horizontal", "contents": contents, **kw}
 
-def txt(t, size="md", weight="regular", color=None, align="start", wrap=True, **kw):
-    d = {"type": "text", "text": str(t), "size": size,
-         "weight": weight, "wrap": wrap, "align": align}
+def t(text, size="md", weight="regular", color=None, align="start", **kw):
+    d = {"type": "text", "text": str(text), "size": size,
+         "weight": weight, "wrap": True, "align": align}
     if color: d["color"] = color
     return {**d, **kw}
 
-def sep(color=None):
-    return {"type": "separator", "margin": "md", "color": color or C['border']}
+def sep():
+    return {"type": "separator", "margin": "lg", "color": C['stroke']}
 
-def btn(label, msg, style="secondary"):
-    # style: primary=black fill, secondary=outline
-    if style == "primary":
-        return {
-            "type": "button", "style": "primary",
-            "color": C['black'], "margin": "sm",
-            "action": {"type": "message", "label": label, "text": msg}
-        }
+def spacer(size="md"):
+    return {"type": "box", "layout": "vertical", "contents": [],
+            "height": "1px" if size == "sm" else "8px" if size == "md" else "16px",
+            "margin": "none"}
+
+def card_box(contents, **kw):
+    return vbox(contents,
+        backgroundColor=C['card'],
+        cornerRadius="10px",
+        paddingAll="16px",
+        margin="lg",
+        **kw)
+
+# ── Button helpers ────────────────────────────────────────────────────
+def btn_soft(label, msg):
+    """Soft grey button — easy on eyes"""
     return {
         "type": "button", "style": "secondary",
-        "color": C['light'], "margin": "sm",
+        "color": C['btn_bg'], "margin": "sm", "height": "sm",
         "action": {"type": "message", "label": label, "text": msg}
     }
 
-def card(contents):
-    return box_v(contents,
-        backgroundColor=C['off'], cornerRadius="12px",
-        paddingAll="16px", margin="md")
+def btn_solid(label, msg):
+    """Dark solid button — for primary actions only"""
+    return {
+        "type": "button", "style": "primary",
+        "color": C['btn_dark'], "margin": "sm", "height": "sm",
+        "action": {"type": "message", "label": label, "text": msg}
+    }
+
+def btn_ghost(label, msg):
+    """Lightest touch button — for options in games"""
+    return {
+        "type": "button", "style": "secondary",
+        "color": C['stroke'], "margin": "xs", "height": "sm",
+        "action": {"type": "message", "label": label, "text": msg}
+    }
+
+def footer_credit():
+    return [t("تم إنشاء هذا البوت بواسطة عبير الدوسري",
+              size="xs", color=C['subtle'], align="center")]
 
 # ═══════════════════════════ WELCOME FLEX ════════════════════════════
 def welcome_flex():
-    return bubble([
-        txt("بوت عناد المالكي", size="xl", weight="bold",
-            color=C['black'], align="center"),
+    """Organized welcome screen — grouped logically, calm palette"""
+    return flex_msg([
+        # Header
+        t("بوت عناد المالكي", size="xl", weight="bold",
+          color=C['strong'], align="center"),
+        vbox([], height="4px"),
+        t("اختر ما يناسبك", size="sm", color=C['subtle'], align="center"),
         sep(),
-        box_v([
-            txt("مرحباً بك", size="sm", color=C['soft'], align="center"),
-        ], margin="md"),
+
+        # Group 1: أسئلة وتفاعل
+        t("أسئلة وتفاعل", size="xs", color=C['subtle'], margin="lg"),
+        hbox([
+            btn_soft("سؤال",    "سؤال"),
+            btn_soft("منشن",    "منشن"),
+            btn_soft("اعتراف",  "اعتراف"),
+        ], margin="sm", spacing="sm"),
+        hbox([
+            btn_soft("تحدي",    "تحدي"),
+            btn_soft("موقف",    "موقف"),
+            btn_soft("اقتباس",  "اقتباس"),
+        ], margin="sm", spacing="sm"),
+
+        # Group 2: نقاش وتفكير
+        t("نقاش وتفكير", size="xs", color=C['subtle'], margin="lg"),
+        hbox([
+            btn_soft("فلسفة",        "فلسفة"),
+            btn_soft("لو كنت",       "لو كنت"),
+            btn_soft("أيهما أصعب",   "أيهما أصعب"),
+        ], margin="sm", spacing="sm"),
+        hbox([
+            btn_soft("أنا لم",   "أنا لم"),
+            btn_soft("قصة",      "قصة"),
+            btn_soft("تحفيز",    "تحفيز"),
+        ], margin="sm", spacing="sm"),
+
+        # Group 3: ألعاب ومعرفة
+        t("ألعاب ومعرفة", size="xs", color=C['subtle'], margin="lg"),
+        hbox([
+            btn_soft("لغز",  "لغز"),
+            btn_soft("دين",  "دين"),
+        ], margin="sm", spacing="sm"),
+        vbox([btn_solid("تحليل الشخصية", "تحليل")], margin="sm"),
+
         sep(),
-        txt("الاوامر المتاحة", size="sm", weight="bold",
-            color=C['dark'], margin="lg"),
-        box_h([
-            btn("سؤال",    "سؤال"),
-            btn("تحدي",    "تحدي"),
-            btn("اعتراف",  "اعتراف"),
-        ], margin="sm", spacing="sm"),
-        box_h([
-            btn("منشن",    "منشن"),
-            btn("موقف",    "موقف"),
-            btn("اقتباس",  "اقتباس"),
-        ], margin="sm", spacing="sm"),
-        box_h([
-            btn("قصة",     "قصة"),
-            btn("فلسفة",   "فلسفة"),
-            btn("تحفيز",   "تحفيز"),
-        ], margin="sm", spacing="sm"),
-        box_h([
-            btn("لو كنت",  "لو كنت"),
-            btn("أيهما أصعب", "أيهما أصعب"),
-        ], margin="sm", spacing="sm"),
-        box_h([
-            btn("أنا لم",  "أنا لم"),
-            btn("لغز",     "لغز"),
-            btn("دين",     "دين"),
-        ], margin="sm", spacing="sm"),
-        box_v([btn("تحليل الشخصية", "تحليل", style="primary")],
-              margin="sm"),
-        sep(),
-        box_h([
-            btn("مساعدة", "مساعدة"),
+        hbox([
+            btn_soft("مساعدة", "مساعدة"),
         ], margin="sm"),
     ],
-    footer=[
-        txt("تم إنشاء هذا البوت بواسطة عبير الدوسري",
-            size="xs", color=C['soft'], align="center")
-    ])
+    footer_contents=footer_credit())
 
 # ═══════════════════════════ HELP FLEX ═══════════════════════════════
 def help_flex():
-    commands = [
+    cmds = [
         ("سؤال",         "سؤال للنقاش في القروب"),
         ("منشن",         "سؤال تذكر فيه شخص"),
         ("اعتراف",       "اعتراف للمجموعة"),
@@ -259,140 +282,138 @@ def help_flex():
         ("تحفيز",        "رسالة تحفيزية"),
         ("لغز",          "لغز مع تلميح وجواب"),
         ("دين",          "سؤال ديني مع تلميح وجواب"),
-        ("تحليل",        "تحليل شخصيتك"),
+        ("تحليل",        "تحليل الشخصية"),
     ]
     rows = []
-    for cmd, desc in commands:
-        rows.append(box_h([
-            txt(cmd,  size="sm", weight="bold", color=C['black'], flex=2),
-            txt(desc, size="sm", color=C['soft'], flex=5),
-        ], margin="sm"))
-        rows.append(sep())
+    for cmd, desc in cmds:
+        rows.append(
+            hbox([
+                t(cmd,  size="sm", weight="bold", color=C['strong'], flex=3),
+                t(desc, size="sm", color=C['subtle'], flex=7),
+            ], margin="sm")
+        )
+        rows.append({"type": "separator", "margin": "sm", "color": C['stroke']})
 
-    return bubble(
-        [txt("دليل الأوامر", size="lg", weight="bold",
-             color=C['black'], align="center"),
-         sep()] + rows[:-1],
-        footer=[
-            txt("تم إنشاء هذا البوت بواسطة عبير الدوسري",
-                size="xs", color=C['soft'], align="center")
-        ]
+    return flex_msg(
+        [t("دليل الأوامر", size="lg", weight="bold",
+           color=C['strong'], align="center"), sep()] + rows[:-1],
+        footer_contents=footer_credit()
     )
 
 # ═══════════════════════════ GAME FLEX ═══════════════════════════════
 def games_list_flex():
-    btns = [btn(f"{i+1}. {g.get('title','تحليل')}", str(i+1), style="primary")
+    btns = [btn_solid(f"{i+1}. {g.get('title','تحليل')}", str(i+1))
             for i, g in enumerate(cm.games)]
-    return bubble(
-        [txt("تحليل الشخصية", size="lg", weight="bold",
-             color=C['black'], align="center"),
-         sep(),
-         txt("اختر التحليل المناسب لك", size="sm",
-             color=C['soft'], align="center", margin="sm"),
-         box_v(btns, margin="md")]
-    )
-
-def question_flex(title, q, progress):
-    options = [btn(f"{k}. {v}", f"game_ans_{k}")
-               for k, v in q['options'].items()]
-    return bubble([
-        box_h([
-            txt(title,    size="sm", weight="bold", color=C['black'], flex=4),
-            txt(progress, size="sm", color=C['soft'],  flex=1, align="end"),
-        ]),
-        card([txt(q['question'], color=C['dark'], size="md")]),
-        box_v(options, margin="md"),
+    return flex_msg([
+        t("تحليل الشخصية", size="lg", weight="bold",
+          color=C['strong'], align="center"),
+        sep(),
+        t("اختر التحليل المناسب لك", size="sm",
+          color=C['subtle'], align="center", margin="sm"),
+        vbox(btns, margin="lg"),
     ])
 
-def result_flex(t):
-    return bubble([
-        txt("نتيجة التحليل", size="lg", weight="bold",
-            color=C['black'], align="center"),
+def question_flex(title, q, progress):
+    """
+    Buttons send "أ" / "ب" / "ج" as plain text.
+    We intercept them at the top of handle() via game_state check.
+    """
+    opts = [btn_ghost(f"{k}. {v}", k) for k, v in q['options'].items()]
+    return flex_msg([
+        hbox([
+            t(title,    size="sm", weight="bold", color=C['body'], flex=5),
+            t(progress, size="sm", color=C['subtle'], flex=1, align="end"),
+        ]),
+        card_box([t(q['question'], color=C['body'])]),
+        vbox(opts, margin="lg"),
+    ])
+
+def result_flex(result_text):
+    return flex_msg([
+        t("نتيجة التحليل", size="lg", weight="bold",
+          color=C['strong'], align="center"),
         sep(),
-        card([txt(t, color=C['dark'])]),
-        box_v([btn("تحليل جديد", "تحليل", style="primary")], margin="md"),
+        card_box([t(result_text, color=C['body'])]),
+        vbox([btn_solid("تحليل جديد", "تحليل")], margin="lg"),
     ],
-    footer=[txt("تم إنشاء هذا البوت بواسطة عبير الدوسري",
-                size="xs", color=C['soft'], align="center")])
+    footer_contents=footer_credit())
 
 # ═══════════════════════════ RIDDLE FLEX ═════════════════════════════
 def riddle_flex(r, num, total):
-    return bubble([
-        box_h([
-            txt("لغز", size="sm", weight="bold", color=C['black'], flex=4),
-            txt(f"{num}/{total}", size="sm", color=C['soft'], flex=1, align="end"),
+    return flex_msg([
+        hbox([
+            t("لغز", size="sm", weight="bold", color=C['body'], flex=4),
+            t(f"{num}/{total}", size="sm", color=C['subtle'], flex=1, align="end"),
         ]),
-        card([txt(r['question'], color=C['dark'])]),
-        box_h([
-            btn("تلميح",   "تلميح_لغز"),
-            btn("الجواب",  "جواب_لغز"),
-            btn("التالي","لغز", style="primary"),
-        ], margin="md", spacing="sm"),
+        card_box([t(r['question'], color=C['body'])]),
+        hbox([
+            btn_soft("تلميح",    "تلميح_لغز"),
+            btn_soft("الجواب",   "جواب_لغز"),
+            btn_solid("لغز جديد","لغز"),
+        ], margin="lg", spacing="sm"),
     ])
 
 def riddle_hint_flex(hint, question):
-    return bubble([
-        txt("تلميح", size="sm", weight="bold", color=C['black']),
-        card([txt(hint, color=C['soft'], size="sm")]),
-        box_v([txt(question, size="xs", color=C['mid'])], margin="sm"),
-        box_h([
-            btn("الجواب",   "جواب_لغز"),
-            btn("التالي", "لغز", style="primary"),
-        ], margin="md", spacing="sm"),
+    return flex_msg([
+        t("تلميح", size="sm", weight="bold", color=C['body']),
+        card_box([t(hint, color=C['subtle'])]),
+        vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
+        hbox([
+            btn_soft("الجواب",   "جواب_لغز"),
+            btn_solid("لغز جديد","لغز"),
+        ], margin="lg", spacing="sm"),
     ])
 
 def riddle_answer_flex(answer, question):
-    return bubble([
-        txt("الجواب", size="sm", weight="bold", color=C['black']),
-        card([txt(answer, color=C['dark'], weight="bold")]),
-        box_v([txt(question, size="xs", color=C['mid'])], margin="sm"),
-        box_v([btn("التالي", "لغز", style="primary")], margin="md"),
+    return flex_msg([
+        t("الجواب", size="sm", weight="bold", color=C['body']),
+        card_box([t(answer, color=C['strong'], weight="bold")]),
+        vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
+        vbox([btn_solid("لغز جديد", "لغز")], margin="lg"),
     ])
 
 # ═══════════════════════════ DEEN FLEX ═══════════════════════════════
 def deen_flex(item, num, total):
-    return bubble([
-        box_h([
-            txt("سؤال ديني", size="sm", weight="bold", color=C['black'], flex=4),
-            txt(f"{num}/{total}", size="sm", color=C['soft'], flex=1, align="end"),
+    return flex_msg([
+        hbox([
+            t("سؤال ديني", size="sm", weight="bold", color=C['body'], flex=5),
+            t(f"{num}/{total}", size="sm", color=C['subtle'], flex=1, align="end"),
         ]),
-        card([txt(item['question'], color=C['dark'])]),
-        box_h([
-            btn("تلميح",     "تلميح_دين"),
-            btn("الجواب",    "جواب_دين"),
-            btn("سؤال جديد", "دين", style="primary"),
-        ], margin="md", spacing="sm"),
+        card_box([t(item['question'], color=C['body'])]),
+        hbox([
+            btn_soft("تلميح",      "تلميح_دين"),
+            btn_soft("الجواب",     "جواب_دين"),
+            btn_solid("سؤال جديد", "دين"),
+        ], margin="lg", spacing="sm"),
     ])
 
 def deen_hint_flex(hint, question):
-    return bubble([
-        txt("تلميح", size="sm", weight="bold", color=C['black']),
-        card([txt(hint, color=C['soft'], size="sm")]),
-        box_v([txt(question, size="xs", color=C['mid'])], margin="sm"),
-        box_h([
-            btn("الجواب",    "جواب_دين"),
-            btn("سؤال جديد", "دين", style="primary"),
-        ], margin="md", spacing="sm"),
+    return flex_msg([
+        t("تلميح", size="sm", weight="bold", color=C['body']),
+        card_box([t(hint, color=C['subtle'])]),
+        vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
+        hbox([
+            btn_soft("الجواب",     "جواب_دين"),
+            btn_solid("سؤال جديد", "دين"),
+        ], margin="lg", spacing="sm"),
     ])
 
 def deen_answer_flex(answer, question):
-    return bubble([
-        txt("الجواب", size="sm", weight="bold", color=C['black']),
-        card([txt(answer, color=C['dark'], weight="bold")]),
-        box_v([txt(question, size="xs", color=C['mid'])], margin="sm"),
-        box_v([btn("سؤال جديد", "دين", style="primary")], margin="md"),
+    return flex_msg([
+        t("الجواب", size="sm", weight="bold", color=C['body']),
+        card_box([t(answer, color=C['strong'], weight="bold")]),
+        vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
+        vbox([btn_solid("سؤال جديد", "دين")], margin="lg"),
     ])
 
 # ═══════════════════════════ HELPERS ═════════════════════════════════
-def _txt(t):
-    return TextMessage(text=str(t))
+def _txt(text):
+    return TextMessage(text=str(text))
 
 def calculate_result(answers, game_idx):
     counts = {"أ": 0, "ب": 0, "ج": 0}
     for a in answers:
-        # answers are stored as "أ"/"ب"/"ج" directly
-        if a in counts:
-            counts[a] += 1
+        if a in counts: counts[a] += 1
     if not any(counts.values()):
         return "شخصيتك مميزة ومختلفة"
     max_val  = max(counts.values())
@@ -429,43 +450,43 @@ def callback():
         abort(400)
     return "OK"
 
-# ═══════════════════════════ HANDLER ═════════════════════════════════
+# ═══════════════════════════ MAIN HANDLER ════════════════════════════
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle(event):
     uid  = event.source.user_id
     text = event.message.text.strip()
 
-    # ─── تحليل: answer in progress ───────────────────────────────────
+    # ── PRIORITY 1: Game in progress ─────────────────────────────────
+    # Must be checked FIRST — before riddle/deen — because أ/ب/ج
+    # are valid game answers and should not be intercepted by other states.
     if uid in cm.game_state:
-        # buttons send "game_ans_أ" etc.
-        if text.startswith("game_ans_"):
-            ans = text.replace("game_ans_", "").strip()
-        elif text in ["أ", "ب", "ج"]:
-            ans = text
+        state = cm.game_state[uid]
+        # Accept exactly أ / ب / ج
+        if text in ["أ", "ب", "ج"]:
+            state["answers"].append(text)
+            game   = cm.games[state["game"]]
+            q_next = state["q"] + 1
+            if q_next < len(game["questions"]):
+                state["q"] = q_next
+                reply(event.reply_token, [
+                    question_flex(game["title"], game["questions"][q_next],
+                                  f"{q_next+1}/{len(game['questions'])}")
+                ])
+            else:
+                res = calculate_result(state["answers"], state["game"])
+                del cm.game_state[uid]
+                reply(event.reply_token, [result_flex(res)])
         else:
-            ans = None
-
-        if ans not in ["أ", "ب", "ج"]:
-            reply(event.reply_token, [_txt("اختر إجابة من الأزرار")]); return
-
-        state  = cm.game_state[uid]
-        state["answers"].append(ans)
-        game   = cm.games[state["game"]]
-        q_next = state["q"] + 1
-
-        if q_next < len(game["questions"]):
-            state["q"] = q_next
+            # Any other text while game is running — re-show question
+            game = cm.games[state["game"]]
+            q    = state["q"]
             reply(event.reply_token, [
-                question_flex(game["title"], game["questions"][q_next],
-                              f"{q_next+1}/{len(game['questions'])}")
+                question_flex(game["title"], game["questions"][q],
+                              f"{q+1}/{len(game['questions'])}")
             ])
-        else:
-            res = calculate_result(state["answers"], state["game"])
-            del cm.game_state[uid]
-            reply(event.reply_token, [result_flex(res)])
         return
 
-    # ─── لغز: in progress ────────────────────────────────────────────
+    # ── PRIORITY 2: Riddle in progress ───────────────────────────────
     if uid in cm.riddle_state:
         rs     = cm.riddle_state[uid]
         riddle = cm.riddles[rs["idx"]]
@@ -476,11 +497,13 @@ def handle(event):
             del cm.riddle_state[uid]
             reply(event.reply_token,
                   [riddle_answer_flex(riddle["answer"], riddle["question"])]); return
-        if text != "لغز":
+        if text == "لغز":
+            del cm.riddle_state[uid]
+            # fall through to start new riddle
+        else:
             reply(event.reply_token, [_txt('اضغط "تلميح" أو "الجواب"')]); return
-        del cm.riddle_state[uid]
 
-    # ─── دين: in progress ────────────────────────────────────────────
+    # ── PRIORITY 3: Deen in progress ─────────────────────────────────
     if uid in cm.deen_state:
         ds   = cm.deen_state[uid]
         item = cm.religion[ds["idx"]]
@@ -491,11 +514,13 @@ def handle(event):
             del cm.deen_state[uid]
             reply(event.reply_token,
                   [deen_answer_flex(item["answer"], item["question"])]); return
-        if text != "دين":
+        if text == "دين":
+            del cm.deen_state[uid]
+            # fall through to start new question
+        else:
             reply(event.reply_token, [_txt('اضغط "تلميح" أو "الجواب"')]); return
-        del cm.deen_state[uid]
 
-    # ─── تحليل: choose game by number ────────────────────────────────
+    # ── Game selection by number ──────────────────────────────────────
     if text.isdigit():
         idx = int(text) - 1
         if 0 <= idx < len(cm.games):
@@ -507,24 +532,24 @@ def handle(event):
             ])
         return
 
-    # ─── بداية / مساعدة ──────────────────────────────────────────────
-    if text in ["بداية", "ابدأ", "start"]:
+    # ── Navigation ────────────────────────────────────────────────────
+    if text in ["بداية","ابدأ","start"]:
         reply(event.reply_token, [welcome_flex()]); return
 
     if text == "مساعدة":
         reply(event.reply_token, [help_flex()]); return
 
     if text == "المزيد":
-        reply(event.reply_token, [_txt("اختر:")], secondary=True); return
+        reply(event.reply_token, [_txt("تفضل:")], secondary=True); return
 
     if text == "رجوع":
         reply(event.reply_token, [_txt("تفضل:")], secondary=False); return
 
-    # ─── تحليل ───────────────────────────────────────────────────────
+    # ── تحليل ─────────────────────────────────────────────────────────
     if text == "تحليل":
         reply(event.reply_token, [games_list_flex()]); return
 
-    # ─── لغز ─────────────────────────────────────────────────────────
+    # ── لغز ───────────────────────────────────────────────────────────
     if text == "لغز":
         if not cm.riddles:
             reply(event.reply_token, [_txt("لا تتوفر ألغاز")]); return
@@ -533,7 +558,7 @@ def handle(event):
         cm.riddle_state[uid] = {"idx": idx}
         reply(event.reply_token, [riddle_flex(r, idx+1, len(cm.riddles))]); return
 
-    # ─── دين ─────────────────────────────────────────────────────────
+    # ── دين ───────────────────────────────────────────────────────────
     if text == "دين":
         if not cm.religion:
             reply(event.reply_token, [_txt("لا تتوفر أسئلة")]); return
@@ -542,7 +567,7 @@ def handle(event):
         cm.deen_state[uid] = {"idx": idx}
         reply(event.reply_token, [deen_flex(r, idx+1, len(cm.religion))]); return
 
-    # ─── نص عادي ─────────────────────────────────────────────────────
+    # ── Plain text commands ────────────────────────────────────────────
     plain = {
         "قصة":         cm.stories,
         "فلسفة":       cm.philosophy,
@@ -555,7 +580,7 @@ def handle(event):
         item = cm.get_random(text, plain[text])
         reply(event.reply_token, [_txt(item or "—")]); return
 
-    # ─── محتوى أصلي ──────────────────────────────────────────────────
+    # ── Original content ──────────────────────────────────────────────
     original = {
         "سؤال":   ("سؤال",   cm.files["سؤال"]),
         "تحدي":   ("تحدي",   cm.files["تحدي"]),
