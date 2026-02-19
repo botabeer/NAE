@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 import json, os, logging, random, threading, time, requests
 from flask import Flask, request, abort
 
-from linebot.v3.webhooks import WebhookHandler
+from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration, ApiClient, MessagingApi,
@@ -11,6 +12,7 @@ from linebot.v3.messaging import (
     MessageAction
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
+_SDK_V3 = True
 
 # ───────────────────────────── LOGGING ──────────────────────────────
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
@@ -286,6 +288,9 @@ def calculate_result(answers, game_idx):
     return cm.results.get(f"لعبة{game_idx + 1}", {}).get(key, "شخصيتك مميزة ومختلفة")
 
 # ══════════════════════════ REPLY HELPER ═════════════════════════════
+def _txt(t):
+    return TextMessage(text=t)
+
 def send_reply(token, msgs, secondary=False):
     if not msgs: return
     msgs[-1].quick_reply = create_menu(secondary)
@@ -324,7 +329,7 @@ def handle(event):
     if uid in cm.game_state:
         ans = text if text in ["أ", "ب", "ج"] else None
         if not ans:
-            send_reply(event.reply_token, [TextMessage(text="اختر: أ  /  ب  /  ج")])
+            send_reply(event.reply_token, [_txt("اختر: أ  /  ب  /  ج")])
             return
         state  = cm.game_state[uid]
         state["answers"].append(ans)
@@ -358,7 +363,7 @@ def handle(event):
             return
         if text != "لغز":
             send_reply(event.reply_token,
-                       [TextMessage(text='اضغط "تلميح" أو "إجابة"')])
+                       [_txt('اضغط "تلميح" أو "إجابة"')])
             return
         del cm.riddle_state[uid]
 
@@ -377,7 +382,7 @@ def handle(event):
     # 4. Second menu page
     if text == "المزيد ⬇️":
         send_reply(event.reply_token,
-                   [TextMessage(text="اختر:")], secondary=True)
+                   [_txt("اختر:")], secondary=True)
         return
 
     # 5. تحليل & لغز
@@ -386,7 +391,7 @@ def handle(event):
 
     if text == "لغز":
         if not cm.riddles:
-            send_reply(event.reply_token, [TextMessage(text="لا تتوفر ألغاز حالياً")]); return
+            send_reply(event.reply_token, [_txt("لا تتوفر ألغاز حالياً")]); return
         r   = cm.get_random("لغز", cm.riddles)
         idx = cm.riddles.index(r)
         cm.riddle_state[uid] = {"riddle_idx": idx, "hint_used": False}
@@ -407,7 +412,7 @@ def handle(event):
         if item:
             send_reply(event.reply_token, [builder(item)])
         else:
-            send_reply(event.reply_token, [TextMessage(text="لا يتوفر محتوى حالياً")])
+            send_reply(event.reply_token, [_txt("لا يتوفر محتوى حالياً")])
         return
 
     # 7. Original text dispatch
@@ -428,7 +433,7 @@ def handle(event):
             if author: msg = f"{msg}\n\n— {author}"
         else:
             msg = item if isinstance(item, str) else "—"
-        send_reply(event.reply_token, [TextMessage(text=msg or "—")])
+        send_reply(event.reply_token, [_txt(msg or "—")])
 
 # ══════════════════════════ KEEP ALIVE ═══════════════════════════════
 def keep_alive():
