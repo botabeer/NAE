@@ -221,7 +221,7 @@ def welcome_flex():
         t("بوت عناد المالكي", size="xl", weight="bold",
           color=C['strong'], align="center"),
         vbox([], height="4px"),
-        t("اختر ما يناسبك", size="sm", color=C['subtle'], align="center"),
+        t("يمكن استخدام البوت بالخاص و القروبات", size="sm", color=C['subtle'], align="center"),
         sep(),
 
         # Group 1: أسئلة وتفاعل
