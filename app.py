@@ -20,18 +20,18 @@ configuration = Configuration(access_token=os.getenv("LINE_CHANNEL_ACCESS_TOKEN"
 handler       = WebhookHandler(os.getenv("LINE_CHANNEL_SECRET"))
 
 # ═══════════════════════════ THEME ═══════════════════════════════════
-# Warm neutrals — elegant, refined, easy on the eyes
+# Black / White / Grey — elegant, unified, easy on the eyes
 C = {
-    'bg':       '#FAFAF8',   # warm off-white
-    'card':     '#F3F2EF',   # warm light grey
-    'stroke':   '#E8E6E1',   # warm border
-    'muted':    '#D4D0C8',   # muted warm
-    'subtle':   '#9E9A92',   # subtle text
-    'body':     '#4A4741',   # body text
-    'strong':   '#1C1A17',   # strong text
-    'btn_bg':   '#ECEAE5',   # button background — soft, not harsh
-    'btn_dark': '#2C2A27',   # dark button fill — warmer than pure black
-    'accent':   '#6B6560',   # accent
+    'bg':       '#FFFFFF',   # pure white background
+    'card':     '#F5F5F5',   # light grey card
+    'stroke':   '#E0E0E0',   # border grey
+    'muted':    '#BDBDBD',   # muted grey
+    'subtle':   '#9E9E9E',   # subtle text
+    'body':     '#424242',   # body text
+    'strong':   '#212121',   # strong text / near black
+    'btn_light':'#EEEEEE',   # light grey button
+    'btn_mid':  '#757575',   # mid grey button
+    'btn_dark': '#212121',   # dark / black button
 }
 
 # ═══════════════════════════ CONTENT MANAGER ═════════════════════════
@@ -52,9 +52,9 @@ class ContentManager:
         self.motivation = []
         self.philosophy = []
         self.used        = {}
-        self.game_state  = {}   # uid -> {game, q, answers}
-        self.riddle_state= {}   # uid -> {idx}
-        self.deen_state  = {}   # uid -> {idx}
+        self.game_state  = {}
+        self.riddle_state= {}
+        self.deen_state  = {}
 
     def _lines(self, f):
         if not os.path.exists(f): logger.warning(f"Missing: {f}"); return []
@@ -80,6 +80,45 @@ class ContentManager:
         except Exception as e:
             logger.error(f"{f}: {e}"); return []
 
+    def _quotes(self, f):
+        """Load quotes — supports both JSON array and plain text (one per line)."""
+        if not os.path.exists(f):
+            logger.warning(f"Missing: {f}"); return []
+        try:
+            with open(f, encoding='utf-8') as fh:
+                raw = fh.read().strip()
+            # Try JSON first
+            try:
+                data = json.loads(raw)
+                if isinstance(data, list):
+                    result = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            result.append(item)
+                        elif isinstance(item, str) and item.strip():
+                            result.append({"text": item.strip(), "author": ""})
+                    return result
+            except json.JSONDecodeError:
+                pass
+            # Plain text fallback: each line is a quote
+            # Format: "quote text (author)" or just "quote text"
+            result = []
+            for line in raw.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                # Extract author if in parentheses at the end
+                if line.endswith(')') and '(' in line:
+                    idx = line.rfind('(')
+                    author = line[idx+1:-1].strip()
+                    text   = line[:idx].strip()
+                    result.append({"text": text, "author": author})
+                else:
+                    result.append({"text": line, "author": ""})
+            return result
+        except Exception as e:
+            logger.error(f"{f}: {e}"); return []
+
     def initialize(self):
         self.files = {
             "سؤال":   self._lines("questions.txt"),
@@ -88,7 +127,7 @@ class ContentManager:
         }
         self.mention    = self._lines("more_questions.txt")
         self.situations = self._lines("situations.txt")
-        self.quotes     = self._json("quotes.txt", default=[])
+        self.quotes     = self._quotes("quotes.txt")
         self.riddles    = self._json("riddles.json", default=[])
         self.results    = self._json("detailed_results.json")
         self.religion   = self._json("religion.json", default=[])
@@ -108,7 +147,8 @@ class ContentManager:
                 "قصة","فلسفة","لو كنت","أيهما أصعب","أنا لم","تحفيز"]
         self.used = {k: [] for k in keys}
         logger.info(f"games={len(self.games)} riddles={len(self.riddles)} "
-                    f"religion={len(self.religion)} stories={len(self.stories)}")
+                    f"religion={len(self.religion)} stories={len(self.stories)} "
+                    f"quotes={len(self.quotes)}")
 
     def get_random(self, key, data):
         if not data: return None
@@ -183,83 +223,69 @@ def card_box(contents, **kw):
         margin="lg",
         **kw)
 
-# ── Button helpers ────────────────────────────────────────────────────
-def btn_soft(label, msg):
-    """Soft grey button — easy on eyes"""
+# ── Button helpers — unified B&W palette ─────────────────────────────
+def btn_light(label, msg):
+    """Light grey button — unified for all actions"""
     return {
         "type": "button", "style": "secondary",
-        "color": C['btn_bg'], "margin": "sm", "height": "sm",
+        "color": C['btn_light'], "margin": "sm", "height": "sm",
         "action": {"type": "message", "label": label, "text": msg}
     }
 
-def btn_solid(label, msg):
-    """Dark solid button — for primary actions only"""
-    return {
-        "type": "button", "style": "primary",
-        "color": C['btn_dark'], "margin": "sm", "height": "sm",
-        "action": {"type": "message", "label": label, "text": msg}
-    }
-
-def btn_ghost(label, msg):
-    """Lightest touch button — for options in games"""
-    return {
-        "type": "button", "style": "secondary",
-        "color": C['stroke'], "margin": "xs", "height": "sm",
-        "action": {"type": "message", "label": label, "text": msg}
-    }
+# All buttons use the same light grey style
+btn_dark  = btn_light
+btn_mid   = btn_light
+btn_soft  = btn_light
+btn_solid = btn_light
+btn_ghost = btn_light
 
 def footer_credit():
-    return [t("تم إنشاء هذا البوت بواسطة عبير الدوسري",
+    return [t("تم انشاء هذا البوت بواسطة عبير الدوسري",
               size="xs", color=C['subtle'], align="center")]
 
 # ═══════════════════════════ WELCOME FLEX ════════════════════════════
 def welcome_flex():
-    """Organized welcome screen — grouped logically, calm palette"""
     return flex_msg([
-        # Header
         t("بوت عناد المالكي", size="xl", weight="bold",
           color=C['strong'], align="center"),
         vbox([], height="4px"),
         t("يمكن استخدام البوت بالخاص و القروبات", size="sm", color=C['subtle'], align="center"),
         sep(),
 
-        # Group 1: أسئلة وتفاعل
-        t("أسئلة وتفاعل", size="xs", color=C['subtle'], margin="lg"),
+        t("اسئلة وتفاعل", size="xs", color=C['subtle'], margin="lg"),
         hbox([
-            btn_soft("سؤال",    "سؤال"),
-            btn_soft("منشن",    "منشن"),
-            btn_soft("اعتراف",  "اعتراف"),
+            btn_light("سؤال",    "سؤال"),
+            btn_light("منشن",    "منشن"),
+            btn_light("اعتراف",  "اعتراف"),
         ], margin="sm", spacing="sm"),
         hbox([
-            btn_soft("تحدي",    "تحدي"),
-            btn_soft("موقف",    "موقف"),
-            btn_soft("اقتباس",  "اقتباس"),
+            btn_light("تحدي",    "تحدي"),
+            btn_light("موقف",    "موقف"),
+            btn_light("اقتباس",  "اقتباس"),
         ], margin="sm", spacing="sm"),
 
-        # Group 2: نقاش وتفكير
         t("نقاش وتفكير", size="xs", color=C['subtle'], margin="lg"),
         hbox([
-            btn_soft("فلسفة",        "فلسفة"),
-            btn_soft("لو كنت",       "لو كنت"),
-            btn_soft("أيهما أصعب",   "أيهما أصعب"),
+            btn_light("فلسفة",        "فلسفة"),
+            btn_light("لو كنت",       "لو كنت"),
+            btn_light("ايهما اصعب",   "أيهما أصعب"),
         ], margin="sm", spacing="sm"),
         hbox([
-            btn_soft("أنا لم",   "أنا لم"),
-            btn_soft("قصة",      "قصة"),
-            btn_soft("تحفيز",    "تحفيز"),
+            btn_light("انا لم",   "أنا لم"),
+            btn_light("قصة",      "قصة"),
+            btn_light("تحفيز",    "تحفيز"),
         ], margin="sm", spacing="sm"),
 
-        # Group 3: ألعاب ومعرفة
-        t("ألعاب ومعرفة", size="xs", color=C['subtle'], margin="lg"),
+        t("العاب ومعرفة", size="xs", color=C['subtle'], margin="lg"),
         hbox([
-            btn_soft("لغز",  "لغز"),
-            btn_soft("دين",  "دين"),
+            btn_light("لغز",  "لغز"),
+            btn_light("دين",  "دين"),
         ], margin="sm", spacing="sm"),
-        vbox([btn_solid("تحليل الشخصية", "تحليل")], margin="sm"),
+        vbox([btn_dark("تحليل الشخصية", "تحليل")], margin="sm"),
 
         sep(),
         hbox([
-            btn_soft("مساعدة", "مساعدة"),
+            btn_light("مساعدة", "مساعدة"),
         ], margin="sm"),
     ],
     footer_contents=footer_credit())
@@ -301,7 +327,7 @@ def help_flex():
 
 # ═══════════════════════════ GAME FLEX ═══════════════════════════════
 def games_list_flex():
-    btns = [btn_solid(f"{i+1}. {g.get('title','تحليل')}", str(i+1))
+    btns = [btn_dark(f"{i+1}. {g.get('title','تحليل')}", str(i+1))
             for i, g in enumerate(cm.games)]
     return flex_msg([
         t("تحليل الشخصية", size="lg", weight="bold",
@@ -313,11 +339,7 @@ def games_list_flex():
     ])
 
 def question_flex(title, q, progress):
-    """
-    Buttons send "أ" / "ب" / "ج" as plain text.
-    We intercept them at the top of handle() via game_state check.
-    """
-    opts = [btn_ghost(f"{k}. {v}", k) for k, v in q['options'].items()]
+    opts = [btn_light(f"{k}. {v}", k) for k, v in q['options'].items()]
     return flex_msg([
         hbox([
             t(title,    size="sm", weight="bold", color=C['body'], flex=5),
@@ -333,7 +355,7 @@ def result_flex(result_text):
           color=C['strong'], align="center"),
         sep(),
         card_box([t(result_text, color=C['body'])]),
-        vbox([btn_solid("تحليل جديد", "تحليل")], margin="lg"),
+        vbox([btn_dark("تحليل جديد", "تحليل")], margin="lg"),
     ],
     footer_contents=footer_credit())
 
@@ -346,9 +368,9 @@ def riddle_flex(r, num, total):
         ]),
         card_box([t(r['question'], color=C['body'])]),
         hbox([
-            btn_soft("تلميح",    "تلميح_لغز"),
-            btn_soft("الجواب",   "جواب_لغز"),
-            btn_solid("لغز جديد","لغز"),
+            btn_light("تلميح",  "تلميح"),
+            btn_light("جواب",   "جواب"),
+            btn_dark("التالي",  "لغز"),
         ], margin="lg", spacing="sm"),
     ])
 
@@ -358,8 +380,8 @@ def riddle_hint_flex(hint, question):
         card_box([t(hint, color=C['subtle'])]),
         vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
         hbox([
-            btn_soft("الجواب",   "جواب_لغز"),
-            btn_solid("لغز جديد","لغز"),
+            btn_light("جواب",  "جواب"),
+            btn_dark("التالي", "لغز"),
         ], margin="lg", spacing="sm"),
     ])
 
@@ -368,7 +390,7 @@ def riddle_answer_flex(answer, question):
         t("الجواب", size="sm", weight="bold", color=C['body']),
         card_box([t(answer, color=C['strong'], weight="bold")]),
         vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
-        vbox([btn_solid("لغز جديد", "لغز")], margin="lg"),
+        vbox([btn_dark("التالي", "لغز")], margin="lg"),
     ])
 
 # ═══════════════════════════ DEEN FLEX ═══════════════════════════════
@@ -380,9 +402,9 @@ def deen_flex(item, num, total):
         ]),
         card_box([t(item['question'], color=C['body'])]),
         hbox([
-            btn_soft("تلميح",      "تلميح_دين"),
-            btn_soft("الجواب",     "جواب_دين"),
-            btn_solid("سؤال جديد", "دين"),
+            btn_light("تلميح",  "تلميح"),
+            btn_light("جواب",   "جواب"),
+            btn_dark("التالي",  "دين"),
         ], margin="lg", spacing="sm"),
     ])
 
@@ -392,8 +414,8 @@ def deen_hint_flex(hint, question):
         card_box([t(hint, color=C['subtle'])]),
         vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
         hbox([
-            btn_soft("الجواب",     "جواب_دين"),
-            btn_solid("سؤال جديد", "دين"),
+            btn_light("جواب",  "جواب"),
+            btn_dark("التالي", "دين"),
         ], margin="lg", spacing="sm"),
     ])
 
@@ -402,7 +424,7 @@ def deen_answer_flex(answer, question):
         t("الجواب", size="sm", weight="bold", color=C['body']),
         card_box([t(answer, color=C['strong'], weight="bold")]),
         vbox([t(question, size="xs", color=C['muted'])], margin="sm"),
-        vbox([btn_solid("سؤال جديد", "دين")], margin="lg"),
+        vbox([btn_dark("التالي", "دين")], margin="lg"),
     ])
 
 # ═══════════════════════════ HELPERS ═════════════════════════════════
@@ -456,11 +478,8 @@ def handle(event):
     text = event.message.text.strip()
 
     # ── PRIORITY 1: Game in progress ─────────────────────────────────
-    # Must be checked FIRST — before riddle/deen — because أ/ب/ج
-    # are valid game answers and should not be intercepted by other states.
     if uid in cm.game_state:
         state = cm.game_state[uid]
-        # Accept exactly أ / ب / ج
         if text in ["أ", "ب", "ج"]:
             state["answers"].append(text)
             game   = cm.games[state["game"]]
@@ -476,7 +495,6 @@ def handle(event):
                 del cm.game_state[uid]
                 reply(event.reply_token, [result_flex(res)])
         else:
-            # Any other text while game is running — re-show question
             game = cm.games[state["game"]]
             q    = state["q"]
             reply(event.reply_token, [
@@ -489,10 +507,10 @@ def handle(event):
     if uid in cm.riddle_state:
         rs     = cm.riddle_state[uid]
         riddle = cm.riddles[rs["idx"]]
-        if text == "تلميح_لغز":
+        if text == "تلميح":
             reply(event.reply_token,
                   [riddle_hint_flex(riddle.get("hint","لا يوجد تلميح"), riddle["question"])]); return
-        if text == "جواب_لغز":
+        if text == "جواب":
             del cm.riddle_state[uid]
             reply(event.reply_token,
                   [riddle_answer_flex(riddle["answer"], riddle["question"])]); return
@@ -500,16 +518,16 @@ def handle(event):
             del cm.riddle_state[uid]
             # fall through to start new riddle
         else:
-            reply(event.reply_token, [_txt('اضغط "تلميح" أو "الجواب"')]); return
+            reply(event.reply_token, [_txt('اضغط "تلميح" او "جواب"')]); return
 
     # ── PRIORITY 3: Deen in progress ─────────────────────────────────
     if uid in cm.deen_state:
         ds   = cm.deen_state[uid]
         item = cm.religion[ds["idx"]]
-        if text == "تلميح_دين":
+        if text == "تلميح":
             reply(event.reply_token,
                   [deen_hint_flex(item.get("hint","لا يوجد تلميح"), item["question"])]); return
-        if text == "جواب_دين":
+        if text == "جواب":
             del cm.deen_state[uid]
             reply(event.reply_token,
                   [deen_answer_flex(item["answer"], item["question"])]); return
@@ -517,7 +535,7 @@ def handle(event):
             del cm.deen_state[uid]
             # fall through to start new question
         else:
-            reply(event.reply_token, [_txt('اضغط "تلميح" أو "الجواب"')]); return
+            reply(event.reply_token, [_txt('اضغط "تلميح" او "جواب"')]); return
 
     # ── Game selection by number ──────────────────────────────────────
     if text.isdigit():
@@ -551,7 +569,7 @@ def handle(event):
     # ── لغز ───────────────────────────────────────────────────────────
     if text == "لغز":
         if not cm.riddles:
-            reply(event.reply_token, [_txt("لا تتوفر ألغاز")]); return
+            reply(event.reply_token, [_txt("لا تتوفر الغاز")]); return
         r   = cm.get_random("لغز", cm.riddles)
         idx = cm.riddles.index(r)
         cm.riddle_state[uid] = {"idx": idx}
@@ -560,7 +578,7 @@ def handle(event):
     # ── دين ───────────────────────────────────────────────────────────
     if text == "دين":
         if not cm.religion:
-            reply(event.reply_token, [_txt("لا تتوفر أسئلة")]); return
+            reply(event.reply_token, [_txt("لا تتوفر اسئلة")]); return
         r   = cm.get_random("دين", cm.religion)
         idx = cm.religion.index(r)
         cm.deen_state[uid] = {"idx": idx}
@@ -594,7 +612,7 @@ def handle(event):
         if text == "اقتباس" and isinstance(item, dict):
             author = item.get("author","").strip()
             msg    = item.get("text","—")
-            if author: msg = f"{msg}\n\n— {author}"
+            if author and author != "غير معروف": msg = f"{msg}\n\n— {author}"
         else:
             msg = item if isinstance(item, str) else "—"
         reply(event.reply_token, [_txt(msg or "—")])
