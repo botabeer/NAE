@@ -88,7 +88,7 @@ class ContentManager:
         }
         self.mention    = self._lines("more_questions.txt")
         self.situations = self._lines("situations.txt")
-        self.quotes     = self._json("quotes.json", default=[])
+        self.quotes     = self._json("quotes.txt", default=[])
         self.riddles    = self._json("riddles.json", default=[])
         self.results    = self._json("detailed_results.json")
         self.religion   = self._json("religion.json", default=[])
